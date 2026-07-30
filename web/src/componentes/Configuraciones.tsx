@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { db, duplicarConfig } from '../lib/datos'
-import { deConfig, type Configuracion, type ProductoCompleto } from '../lib/tipos'
+import { deConfig, galeriaDe, type Configuracion, type ProductoCompleto } from '../lib/tipos'
 import { borrarFoto } from '../lib/fotos'
 import { AltaRapida, CampoTexto } from './ui'
 import { Foto } from './Foto'
@@ -101,14 +101,16 @@ function TarjetaEstilo({ datos, config, numero, abierto, onAbrir, onDuplicado }:
   const colores = deConfig(datos.colores, config.id)
   const variantes = deConfig(datos.variantes, config.id)
   const specs = deConfig(datos.specs, config.id)
-  const fotos = deConfig(datos.fotos, config.id)
+  const fotosGaleria = galeriaDe(datos.fotos, config.id)
+  const fotosDetalles = datos.fotos.filter((f) => f.config_id === config.id && f.spec_id)
 
   const unidades = variantes.reduce((s, v) => s + v.cantidad, 0)
   const definidos = specs.filter((s) => s.definido).length
 
   const duplicar = async () => {
     const nuevo = await duplicarConfig(producto.id, {
-      config, specs, medidas, colores, variantes, fotos,
+      config, specs, medidas, colores, variantes,
+      fotos: [...fotosGaleria, ...fotosDetalles],
     }, configs.length)
     if (nuevo) onDuplicado(nuevo)
   }
@@ -195,6 +197,7 @@ function TarjetaEstilo({ datos, config, numero, abierto, onAbrir, onDuplicado }:
             productoId={producto.id}
             configId={config.id}
             specs={specs}
+            fotos={fotosDetalles}
             titulo={`Packaging y detalles de ${config.nombre}`}
             sinCaja
           />
@@ -210,7 +213,7 @@ function TarjetaEstilo({ datos, config, numero, abierto, onAbrir, onDuplicado }:
           <SeccionGaleria
             productoId={producto.id}
             configId={config.id}
-            fotos={fotos}
+            fotos={fotosGaleria}
           />
         </div>
       )}

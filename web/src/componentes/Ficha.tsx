@@ -27,6 +27,8 @@ export function Ficha({ id, onVolver, onExportar, onDuplicado }: {
 
   const { producto: p, specs, notas } = datos
   const specsGenerales = specs.filter((s) => !s.config_id)
+  const idsGenerales = new Set(specsGenerales.map((s) => s.id))
+  const fotosGenerales = datos.fotos.filter((x) => x.spec_id && idsGenerales.has(x.spec_id))
   const set = (cambios: Record<string, unknown>) => db.actualizarProducto(p.id, cambios)
 
   return (
@@ -174,6 +176,7 @@ export function Ficha({ id, onVolver, onExportar, onDuplicado }: {
         <SeccionSpecs
           productoId={p.id}
           specs={specsGenerales}
+          fotos={fotosGenerales}
           titulo="Detalles iguales en todos los estilos"
         />
 

@@ -288,6 +288,15 @@ async function hojaProducto(
 
   const ctx = { ws, wb, tr, idioma, conFotos, fila: 1 }
 
+  // las imágenes que cuelgan de cada detalle, para mostrarlas con su texto
+  const fotosPorSpec = new Map<string, { url: string; titulo: string | null }[]>()
+  for (const f of p.fotos) {
+    if (!f.spec_id) continue
+    const lista = fotosPorSpec.get(f.spec_id) ?? []
+    lista.push({ url: f.url, titulo: f.titulo })
+    fotosPorSpec.set(f.spec_id, lista)
+  }
+
   // --- encabezado del producto
   const rTit = ws.getRow(ctx.fila)
   rTit.getCell(1).value = valor(p.producto.nombre, tr, idioma)
@@ -340,7 +349,7 @@ async function hojaProducto(
   const generales = p.specs.filter((s) => !s.config_id)
   if (generales.length) {
     seccion(ctx, 'DETALLES GENERALES', 'GENERAL SPECIFICATIONS')
-    await tablaSpecs(ctx, generales)
+    await tablaSpecs(ctx, generales, fotosPorSpec)
     ctx.fila += 1
   }
 
@@ -374,12 +383,12 @@ async function hojaProducto(
     const specsCfg = de(p.specs, cfg.id)
     if (specsCfg.length) {
       if (!varias) seccion(ctx, 'DETALLES', 'SPECIFICATIONS')
-      await tablaSpecs(ctx, specsCfg)
+      await tablaSpecs(ctx, specsCfg, fotosPorSpec)
       ctx.fila += 1
     }
 
     await tablaMatriz(ctx, p, cfg)
-    await galeria(ctx, de(p.fotos, cfg.id))
+    await galeria(ctx, de(p.fotos, cfg.id).filter((f) => !f.spec_id))
     ctx.fila += 1
   }
 
@@ -425,14 +434,15 @@ function seccion(ctx: Ctx, es: string, en: string, soloTexto?: string) {
 
 async function tablaSpecs(
   ctx: Ctx,
-  specs: { nombre: string; valor: string | null; foto: string | null }[],
+  specs: { id: string; nombre: string; valor: string | null; foto: string | null }[],
+  fotosPorSpec: Map<string, { url: string; titulo: string | null }[]>,
 ) {
   const { ws, wb, tr, idioma, conFotos } = ctx
   const cab = ws.getRow(ctx.fila)
   cab.values = [
     rotulo('Detalle', 'Item', idioma),
     rotulo('Valor', 'Value', idioma),
-    conFotos ? rotulo('Referencia', 'Reference', idioma) : '',
+    conFotos ? rotulo('Imágenes', 'Images', idioma) : '',
   ]
   cab.eachCell((c) => {
     c.font = { bold: true, size: 10 }
@@ -442,28 +452,58 @@ async function tablaSpecs(
   ctx.fila += 1
 
   for (const s of specs) {
+    // la foto suelta del detalle más todas las imágenes que se le cargaron
+    const imagenes = [
+      ...(s.foto ? [{ url: s.foto, titulo: null as string | null }] : []),
+      ...(fotosPorSpec.get(s.id) ?? []),
+    ]
+
     const r = ws.getRow(ctx.fila)
     r.getCell(1).value = valor(s.nombre, tr, idioma)
     r.getCell(1).font = { bold: true, size: 10 }
-    r.getCell(1).alignment = { vertical: 'middle', wrapText: true }
+    r.getCell(1).alignment = { vertical: 'top', wrapText: true }
     r.getCell(1).border = borde
     r.getCell(2).value = valor(s.valor, tr, idioma)
-    r.getCell(2).alignment = { vertical: 'middle', wrapText: true }
+    r.getCell(2).alignment = { vertical: 'top', wrapText: true }
     r.getCell(2).border = borde
-    r.getCell(3).border = borde
+    for (let i = 3; i <= 8; i++) r.getCell(i).border = borde
 
     let alto = idioma === 'ambos' ? 34 : 24
-    if (conFotos && s.foto) {
-      const img = await bajarImagen(s.foto)
-      if (img) {
+
+    if (conFotos && imagenes.length) {
+      alto = 84
+      let col = 0
+      for (const im of imagenes) {
+        if (col >= 6) break // no más de 6 por detalle, no entran a lo ancho
+        const img = await bajarImagen(im.url)
+        if (!img) continue
         const id = wb.addImage(img)
         ws.addImage(id, {
-          tl: { col: 2.1, row: ctx.fila - 1 + 0.1 },
-          ext: { width: 96, height: 96 },
+          tl: { col: 2.08 + col, row: ctx.fila - 1 + 0.08 },
+          ext: { width: 88, height: 88 },
         })
-        alto = 78
+        col += 1
+      }
+
+      // el texto de cada imagen, en la fila de abajo y bajo su imagen
+      const conTexto = imagenes.slice(0, 6).filter((im) => im.titulo)
+      if (conTexto.length) {
+        ctx.fila += 1
+        const rTextos = ws.getRow(ctx.fila)
+        imagenes.slice(0, 6).forEach((im, i) => {
+          if (!im.titulo) return
+          const cel = rTextos.getCell(3 + i)
+          cel.value = valor(im.titulo, tr, idioma)
+          cel.font = { size: 9, color: { argb: TENUE } }
+          cel.alignment = { vertical: 'top', wrapText: true, horizontal: 'center' }
+        })
+        rTextos.height = idioma === 'ambos' ? 28 : 16
+        ws.getRow(ctx.fila - 1).height = alto
+        ctx.fila += 1
+        continue
       }
     }
+
     const largo = (s.valor?.length ?? 0) * (idioma === 'ambos' ? 2 : 1)
     r.height = Math.max(alto, Math.min(110, 18 + largo / 2.5))
     ctx.fila += 1

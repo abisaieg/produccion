@@ -12,17 +12,31 @@ import { Foto } from './Foto'
  * packaging se carga una sola vez con su foto y después se elige con un
  * click en cada estilo.
  */
-export function ElegirOpcion({ tipo, specId, onCerrar }: {
+export function ElegirOpcion({ tipo, specId, productoId, configId, onCerrar }: {
   tipo: string
   /** el detalle del producto que se va a completar con la opción elegida */
   specId: string
+  productoId: string
+  configId: string | null
   onCerrar: () => void
 }) {
   const { opciones, cargando, recargar } = useBiblioteca(tipo)
   const [creando, setCreando] = useState(false)
 
   const elegir = async (op: Opcion) => {
-    await db.actualizar('especificaciones', specId, { ...comoDetalle(op), definido: true })
+    const { foto, ...resto } = comoDetalle(op)
+    await db.actualizar('especificaciones', specId, { ...resto, definido: true })
+    // la foto de la opción se suma como una imagen más del detalle
+    if (foto) {
+      await db.agregar('fotos', {
+        producto_id: productoId,
+        config_id: configId,
+        spec_id: specId,
+        url: foto,
+        titulo: op.nombre,
+        orden: 0,
+      })
+    }
     onCerrar()
   }
 

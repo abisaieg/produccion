@@ -82,7 +82,10 @@ export interface Foto {
   id: string
   producto_id: string
   config_id: string | null
+  /** si tiene valor, la imagen pertenece a ese detalle y no a la galería */
+  spec_id: string | null
   url: string
+  /** el texto propio de esta imagen */
   titulo: string | null
   orden: number
 }
@@ -143,6 +146,11 @@ export function deConfig<T extends { config_id: string | null }>(
   configId: string,
 ): T[] {
   return lista.filter((x) => x.config_id === configId)
+}
+
+/** Las fotos de la galería del estilo: las que no cuelgan de un detalle. */
+export function galeriaDe(fotos: Foto[], configId: string): Foto[] {
+  return fotos.filter((f) => f.config_id === configId && !f.spec_id)
 }
 
 // Especificaciones que se sugieren al crear un producto nuevo.

@@ -1,36 +1,39 @@
 import { useState } from 'react'
 import { db } from '../lib/datos'
-import { SPECS_SUGERIDAS, type Especificacion } from '../lib/tipos'
-import { borrarFoto } from '../lib/fotos'
-import { BotonBorrar, CampoNuevo, CampoTexto, Vacio } from './ui'
-import { Foto } from './Foto'
+import { SPECS_SUGERIDAS, type Especificacion, type Foto } from '../lib/tipos'
+import { BotonBorrar, CampoNuevo, CampoTexto } from './ui'
 import { ElegirOpcion } from './ElegirOpcion'
+import { Imagenes } from './Imagenes'
 
 /**
  * Los detalles del producto: packaging, insert, tela, etc.
  *
- * Cada uno se puede elegir de la biblioteca (con su foto ya cargada) o
- * escribir a mano si es algo puntual.
+ * Cada uno lleva un texto y todas las imágenes que quieras, cada imagen con
+ * su propio texto. También se puede traer de la biblioteca, que guarda las
+ * opciones ya cargadas con su foto para reusarlas entre estilos.
  */
-export function SeccionSpecs({ productoId, configId = null, specs, titulo, sinCaja = false }: {
+export function SeccionSpecs({
+  productoId, configId = null, specs, fotos, titulo, sinCaja = false,
+}: {
   productoId: string
-  /** null = detalles generales del producto; con valor = detalles de esa configuración */
+  /** null = detalles generales del producto; con valor = detalles de ese estilo */
   configId?: string | null
   specs: Especificacion[]
+  /** todas las fotos del producto; acá se usan las que cuelgan de cada detalle */
+  fotos: Foto[]
   titulo?: string
   sinCaja?: boolean
 }) {
-  const [agregando, setAgregando] = useState(false)
+  const [agregando, setAgregando] = useState(specs.length === 0)
 
   // el panel queda abierto: normalmente se cargan varios detalles seguidos
-  const agregar = async (nombre: string) => {
-    await db.agregar('especificaciones', {
+  const agregar = (nombre: string) =>
+    db.agregar('especificaciones', {
       producto_id: productoId,
       config_id: configId,
       nombre,
       orden: specs.length,
     })
-  }
 
   const sinUsar = SPECS_SUGERIDAS.filter(
     (s) => !specs.some((e) => e.nombre.toLowerCase() === s.toLowerCase()),
@@ -48,9 +51,11 @@ export function SeccionSpecs({ productoId, configId = null, specs, titulo, sinCa
             </span>
           )}
         </h3>
-        <button onClick={() => setAgregando(!agregando)} className="btn btn-chico shrink-0">
-          {agregando ? 'Listo' : '+ Detalle'}
-        </button>
+        {specs.length > 0 && (
+          <button onClick={() => setAgregando(!agregando)} className="btn btn-chico shrink-0">
+            {agregando ? 'Listo' : '+ Detalle'}
+          </button>
+        )}
       </div>
 
       {agregando && (
@@ -79,138 +84,96 @@ export function SeccionSpecs({ productoId, configId = null, specs, titulo, sinCa
         </div>
       )}
 
-      {specs.length === 0 && !agregando ? (
-        <Vacio
-          texto="Todavía no cargaste ningún detalle."
-          accion={
-            <button onClick={() => setAgregando(true)} className="btn btn-chico">
-              Agregar los detalles típicos
-            </button>
-          }
-        />
-      ) : (
-        <div className="divide-y divide-neutral-100">
-          {specs.map((s) => (
-            <FilaSpec key={s.id} spec={s} />
-          ))}
-        </div>
-      )}
+      <div className="divide-y divide-neutral-100">
+        {specs.map((s) => (
+          <FilaSpec
+            key={s.id}
+            spec={s}
+            productoId={productoId}
+            configId={configId}
+            fotos={fotos.filter((f) => f.spec_id === s.id)}
+          />
+        ))}
+      </div>
     </section>
   )
 }
 
-function FilaSpec({ spec }: { spec: Especificacion }) {
+function FilaSpec({ spec, productoId, configId, fotos }: {
+  spec: Especificacion
+  productoId: string
+  configId: string | null
+  fotos: Foto[]
+}) {
   const [eligiendo, setEligiendo] = useState(false)
   const set = (cambios: Record<string, unknown>) =>
     db.actualizar('especificaciones', spec.id, cambios)
 
-  const borrar = () => {
-    if (spec.foto && !spec.opcion_id) borrarFoto(spec.foto)
-    db.borrar('especificaciones', spec.id)
-  }
-
-  const tilde = (
-    <button
-      onClick={() => set({ definido: !spec.definido })}
-      title={spec.definido ? 'Definido' : 'Marcar como definido'}
-      className={`w-5 h-5 shrink-0 rounded border flex items-center justify-center
-                  transition-colors ${spec.definido
-                    ? 'bg-neutral-900 border-neutral-900 text-white'
-                    : 'border-neutral-300 hover:border-neutral-500'}`}
-    >
-      {spec.definido && (
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4">
-          <path d="M4 12l6 6L20 6" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      )}
-    </button>
-  )
-
-  /** Miniatura de la opción elegida, o el cuadro para subir una foto suelta. */
-  const imagen = spec.opcion_id && spec.foto ? (
-    <img
-      src={spec.foto}
-      alt=""
-      onClick={() => setEligiendo(true)}
-      className="w-16 h-16 shrink-0 rounded object-cover border border-neutral-200 cursor-pointer"
-      title="Cambiar"
-    />
-  ) : (
-    <Foto
-      url={spec.foto}
-      tamaño="sm"
-      carpeta="specs"
-      etiqueta="Ej."
-      onCambio={(url) => {
-        if (!url && spec.foto) borrarFoto(spec.foto)
-        set({ foto: url })
-      }}
-    />
-  )
-
-  /** El valor: botón para elegir de la biblioteca, o texto libre si ya hay algo escrito. */
-  const cuerpo = spec.valor ? (
-    <div className="flex items-start gap-2">
-      <div className="flex-1 min-w-0">
-        <CampoTexto
-          valor={spec.valor}
-          onGuardar={(v) => set({ valor: v })}
-          placeholder="Describilo…"
-          className="text-sm"
-          multilinea
-          filas={1}
-        />
-      </div>
-      <button
-        onClick={() => setEligiendo(true)}
-        className="text-xs text-neutral-400 hover:text-neutral-900 underline
-                   whitespace-nowrap shrink-0 pt-2"
-      >
-        cambiar
-      </button>
-    </div>
-  ) : (
-    <button
-      onClick={() => setEligiendo(true)}
-      className="w-full text-left text-sm text-neutral-400 border border-dashed
-                 border-neutral-300 rounded px-3 py-2 hover:border-neutral-900
-                 hover:text-neutral-900 transition-colors"
-    >
-      Elegir {spec.nombre.toLowerCase()}…
-    </button>
-  )
-
   return (
     <>
       <div className="py-3">
-        {/* celular: nombre arriba, valor y foto abajo */}
-        <div className="flex sm:hidden items-center gap-2 mb-1.5">
-          {tilde}
-          <CampoTexto
-            valor={spec.nombre}
-            onGuardar={(v) => set({ nombre: v ?? 'Sin nombre' })}
-            className="text-sm font-medium flex-1 min-w-0"
-          />
-          <BotonBorrar onBorrar={borrar} />
-        </div>
-        <div className="flex sm:hidden gap-2 items-start pl-7">
-          <div className="flex-1 min-w-0">{cuerpo}</div>
-          {imagen}
-        </div>
+        <div className="flex items-center gap-2 mb-2">
+          <button
+            onClick={() => set({ definido: !spec.definido })}
+            title={spec.definido ? 'Definido' : 'Marcar como definido'}
+            className={`w-5 h-5 shrink-0 rounded border flex items-center justify-center
+                        transition-colors ${spec.definido
+                          ? 'bg-neutral-900 border-neutral-900 text-white'
+                          : 'border-neutral-300 hover:border-neutral-500'}`}
+          >
+            {spec.definido && (
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" strokeWidth="4">
+                <path d="M4 12l6 6L20 6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+          </button>
 
-        {/* pantalla grande: todo en una línea */}
-        <div className="hidden sm:flex gap-3 items-start">
-          <div className="pt-1.5">{tilde}</div>
-          <div className="w-40 shrink-0">
+          <div className="w-32 sm:w-40 shrink-0">
             <CampoTexto
               valor={spec.nombre}
               onGuardar={(v) => set({ nombre: v ?? 'Sin nombre' })}
               className="text-sm font-medium"
             />
           </div>
-          <div className="flex-1 min-w-0">{cuerpo}</div>
-          {imagen}
-          <BotonBorrar className="mt-1" onBorrar={borrar} />
+
+          <div className="flex-1 min-w-0">
+            <CampoTexto
+              valor={spec.valor}
+              onGuardar={(v) => set({ valor: v })}
+              placeholder={`Describí el ${spec.nombre.toLowerCase()}…`}
+              className="text-sm"
+            />
+          </div>
+
+          <button
+            onClick={() => setEligiendo(true)}
+            title="Traer de la biblioteca"
+            className="text-xs text-neutral-400 hover:text-neutral-900 underline
+                       whitespace-nowrap shrink-0 hidden sm:block"
+          >
+            biblioteca
+          </button>
+
+          <BotonBorrar onBorrar={() => db.borrar('especificaciones', spec.id)} />
+        </div>
+
+        {/* todas las imágenes que quieras, cada una con su texto */}
+        <div className="pl-7">
+          <Imagenes
+            productoId={productoId}
+            configId={configId}
+            specId={spec.id}
+            fotos={fotos}
+            tamaño="sm"
+            etiquetaVacio="Foto"
+          />
+          <button
+            onClick={() => setEligiendo(true)}
+            className="text-xs text-neutral-400 hover:text-neutral-900 underline mt-1 sm:hidden"
+          >
+            traer de la biblioteca
+          </button>
         </div>
       </div>
 
@@ -218,6 +181,8 @@ function FilaSpec({ spec }: { spec: Especificacion }) {
         <ElegirOpcion
           tipo={spec.nombre}
           specId={spec.id}
+          productoId={productoId}
+          configId={configId}
           onCerrar={() => setEligiendo(false)}
         />
       )}
