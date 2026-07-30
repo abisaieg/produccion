@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { db } from '../lib/datos'
 import { SPECS_SUGERIDAS, type Especificacion } from '../lib/tipos'
 import { borrarFoto } from '../lib/fotos'
-import { BotonBorrar, CampoTexto, Vacio } from './ui'
+import { BotonBorrar, CampoNuevo, CampoTexto, Vacio } from './ui'
 import { Foto } from './Foto'
 
 /**
@@ -20,6 +20,7 @@ export function SeccionSpecs({ productoId, configId = null, specs, titulo, sinCa
 }) {
   const [agregando, setAgregando] = useState(false)
 
+  // el panel queda abierto: normalmente se cargan varios detalles seguidos
   const agregar = async (nombre: string) => {
     await db.agregar('especificaciones', {
       producto_id: productoId,
@@ -27,7 +28,6 @@ export function SeccionSpecs({ productoId, configId = null, specs, titulo, sinCa
       nombre,
       orden: specs.length,
     })
-    setAgregando(false)
   }
 
   const sinUsar = SPECS_SUGERIDAS.filter(
@@ -53,13 +53,13 @@ export function SeccionSpecs({ productoId, configId = null, specs, titulo, sinCa
 
       {agregando && (
         <div className="mb-4 p-3 bg-neutral-50 rounded border border-neutral-200">
-          <CampoTexto
-            valor={null}
-            autoFocus
-            placeholder="Nombre del detalle (ej: Tipo de cierre) y Enter"
-            className="campo-caja mb-2"
-            onGuardar={(v) => { if (v) agregar(v) }}
-          />
+          <div className="mb-2">
+            <CampoNuevo
+              autoFocus
+              placeholder="Nombre del detalle (ej: Tipo de cierre) y Enter"
+              onCrear={agregar}
+            />
+          </div>
           {sinUsar.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {sinUsar.map((s) => (
@@ -101,60 +101,90 @@ function FilaSpec({ spec }: { spec: Especificacion }) {
   const set = (cambios: Record<string, unknown>) =>
     db.actualizar('especificaciones', spec.id, cambios)
 
-  return (
-    <div className="flex gap-3 py-2.5 items-start group">
-      <button
-        onClick={() => set({ definido: !spec.definido })}
-        title={spec.definido ? 'Definido' : 'Marcar como definido'}
-        className={`mt-1.5 w-4 h-4 shrink-0 rounded border flex items-center justify-center
-                    transition-colors ${spec.definido
-                      ? 'bg-neutral-900 border-neutral-900 text-white'
-                      : 'border-neutral-300 hover:border-neutral-500'}`}
-      >
-        {spec.definido && (
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4">
-            <path d="M4 12l6 6L20 6" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        )}
-      </button>
+  const borrar = () => {
+    if (spec.foto) borrarFoto(spec.foto)
+    db.borrar('especificaciones', spec.id)
+  }
 
-      <div className="w-36 sm:w-44 shrink-0">
+  const tilde = (
+    <button
+      onClick={() => set({ definido: !spec.definido })}
+      title={spec.definido ? 'Definido' : 'Marcar como definido'}
+      className={`w-5 h-5 shrink-0 rounded border flex items-center justify-center
+                  transition-colors ${spec.definido
+                    ? 'bg-neutral-900 border-neutral-900 text-white'
+                    : 'border-neutral-300 hover:border-neutral-500'}`}
+    >
+      {spec.definido && (
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4">
+          <path d="M4 12l6 6L20 6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )}
+    </button>
+  )
+
+  const foto = (
+    <Foto
+      url={spec.foto}
+      tamaño="sm"
+      carpeta="specs"
+      etiqueta="Ej."
+      onCambio={(url) => {
+        if (!url && spec.foto) borrarFoto(spec.foto)
+        set({ foto: url })
+      }}
+    />
+  )
+
+  return (
+    <div className="py-3">
+      {/* celular: el nombre arriba con su tilde y su tacho */}
+      <div className="flex sm:hidden items-center gap-2 mb-1.5">
+        {tilde}
         <CampoTexto
           valor={spec.nombre}
           onGuardar={(v) => set({ nombre: v ?? 'Sin nombre' })}
-          className={`text-sm font-medium ${spec.definido ? '' : 'text-neutral-900'}`}
+          className="text-sm font-medium flex-1 min-w-0"
         />
+        <BotonBorrar onBorrar={borrar} />
+      </div>
+      <div className="flex sm:hidden gap-2 items-start pl-7">
+        <div className="flex-1 min-w-0">
+          <CampoTexto
+            valor={spec.valor}
+            onGuardar={(v) => set({ valor: v })}
+            placeholder="Describilo…"
+            className="text-sm"
+            multilinea
+            filas={2}
+          />
+        </div>
+        {foto}
       </div>
 
-      <div className="flex-1 min-w-0">
-        <CampoTexto
-          valor={spec.valor}
-          onGuardar={(v) => set({ valor: v })}
-          placeholder="Describilo… (ej: bolsa PVC con cierre, logo 2 colores)"
-          className="text-sm"
-          multilinea
-          filas={1}
-        />
+      {/* pantalla grande: todo en una línea */}
+      <div className="hidden sm:flex gap-3 items-start">
+        <div className="pt-1.5">{tilde}</div>
+        <div className="w-44 shrink-0">
+          <CampoTexto
+            valor={spec.nombre}
+            onGuardar={(v) => set({ nombre: v ?? 'Sin nombre' })}
+            className="text-sm font-medium"
+          />
+        </div>
+        <div className="flex-1 min-w-0">
+          <CampoTexto
+            valor={spec.valor}
+            onGuardar={(v) => set({ valor: v })}
+            placeholder="Describilo… (ej: bolsa PVC con cierre, logo 2 colores)"
+            className="text-sm"
+            multilinea
+            filas={1}
+          />
+        </div>
+        {foto}
+        <BotonBorrar className="mt-1" onBorrar={borrar} />
       </div>
-
-      <Foto
-        url={spec.foto}
-        tamaño="sm"
-        carpeta="specs"
-        etiqueta="Ej."
-        onCambio={(url) => {
-          if (!url && spec.foto) borrarFoto(spec.foto)
-          set({ foto: url })
-        }}
-      />
-
-      <BotonBorrar
-        className="opacity-0 group-hover:opacity-100 transition-opacity mt-1"
-        onBorrar={() => {
-          if (spec.foto) borrarFoto(spec.foto)
-          db.borrar('especificaciones', spec.id)
-        }}
-      />
     </div>
   )
 }

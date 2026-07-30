@@ -96,7 +96,7 @@ export function Configuraciones({ datos }: { datos: ProductoCompleto }) {
 
       <div className="p-4 space-y-6">
         {/* encabezado de la versión */}
-        <div className="flex gap-3 items-start">
+        <div className="flex flex-wrap gap-3 items-start">
           <Foto
             url={config.foto}
             tamaño="sm"
@@ -126,7 +126,7 @@ export function Configuraciones({ datos }: { datos: ProductoCompleto }) {
               className="text-sm text-neutral-600"
             />
           </div>
-          <div className="flex gap-1 shrink-0">
+          <div className="flex gap-1 shrink-0 w-full sm:w-auto">
             {!varias && (
               <button onClick={agregar} className="btn btn-chico" title="Agregar otra versión del producto">
                 + Otra versión

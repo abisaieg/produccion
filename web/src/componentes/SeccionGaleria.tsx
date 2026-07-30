@@ -74,8 +74,7 @@ export function SeccionGaleria({ productoId, configId, fotos }: {
               <button
                 onClick={() => { borrarFoto(f.url); db.borrar('fotos', f.id) }}
                 className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white
-                           text-xs leading-none opacity-0 group-hover:opacity-100
-                           transition-opacity flex items-center justify-center"
+                           text-xs leading-none                            flex items-center justify-center"
                 title="Borrar foto"
               >
                 ×

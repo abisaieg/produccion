@@ -76,7 +76,7 @@ export function SeccionMatriz({ producto, configId, medidas, colores, variantes 
             <thead>
               <tr>
                 <th className="text-left font-medium text-neutral-500 text-xs pb-2 pr-3
-                               sticky left-0 bg-white z-10 min-w-[190px]">
+                               sticky left-0 bg-white z-10 min-w-[150px] sm:min-w-[190px]">
                   Medida
                 </th>
                 {mostrarPrecios && (
@@ -92,24 +92,33 @@ export function SeccionMatriz({ producto, configId, medidas, colores, variantes 
                 <th className="text-center font-medium text-neutral-500 text-xs pb-2 px-2 w-20">
                   Total
                 </th>
-                <th className="w-6" />
               </tr>
             </thead>
             <tbody>
               {medidas.map((m) => (
                 <tr key={m.id} className="group border-t border-neutral-100">
+                  {/* el tacho va acá y no al final: en el celular, al final
+                      de la tabla quedaría fuera de la pantalla */}
                   <td className="py-1.5 pr-3 sticky left-0 bg-white z-10">
-                    <CampoTexto
-                      valor={m.nombre}
-                      onGuardar={(v) => db.actualizar('medidas', m.id, { nombre: v ?? 'Sin nombre' })}
-                      className="text-sm font-medium"
-                    />
-                    <CampoTexto
-                      valor={m.detalle}
-                      onGuardar={(v) => db.actualizar('medidas', m.id, { detalle: v })}
-                      placeholder="240 x 260 cm"
-                      className="text-xs text-neutral-500"
-                    />
+                    <div className="flex items-start gap-1">
+                      <div className="flex-1 min-w-0">
+                        <CampoTexto
+                          valor={m.nombre}
+                          onGuardar={(v) => db.actualizar('medidas', m.id, { nombre: v ?? 'Sin nombre' })}
+                          className="text-sm font-medium"
+                        />
+                        <CampoTexto
+                          valor={m.detalle}
+                          onGuardar={(v) => db.actualizar('medidas', m.id, { detalle: v })}
+                          placeholder="240 x 260 cm"
+                          className="text-xs text-neutral-500"
+                        />
+                      </div>
+                      <BotonBorrar
+                        titulo="Borrar medida"
+                        onBorrar={() => db.borrar('medidas', m.id)}
+                      />
+                    </div>
                   </td>
 
                   {mostrarPrecios && (
@@ -142,12 +151,6 @@ export function SeccionMatriz({ producto, configId, medidas, colores, variantes 
                   <td className="px-2 text-center font-semibold tabular-nums bg-neutral-50">
                     {totalFila(m.id).toLocaleString('es-AR')}
                   </td>
-                  <td>
-                    <BotonBorrar
-                      className="opacity-0 group-hover:opacity-100 transition-opacity"
-                      onBorrar={() => db.borrar('medidas', m.id)}
-                    />
-                  </td>
                 </tr>
               ))}
 
@@ -164,7 +167,6 @@ export function SeccionMatriz({ producto, configId, medidas, colores, variantes 
                 <td className="px-2 text-center font-bold tabular-nums">
                   {totalGeneral.toLocaleString('es-AR')}
                 </td>
-                <td />
               </tr>
             </tbody>
           </table>
@@ -216,8 +218,8 @@ function EncabezadoColor({ color }: { color: Color }) {
       </div>
       <button
         onClick={() => db.borrar('colores', color.id)}
-        className="text-[10px] text-neutral-300 hover:text-red-600 opacity-0
-                   group-hover/col:opacity-100 transition-opacity leading-none"
+        className="text-[10px] text-neutral-400 hover:text-red-600 transition-colors
+                   leading-none px-2 py-1"
       >
         quitar
       </button>
@@ -236,14 +238,23 @@ function Celda({ productoId, configId, medidaId, colorId, valor }: {
   valor: number
 }) {
   const [local, setLocal] = useState(valor ? String(valor) : '')
-  const [enfocado, setEnfocado] = useState(false)
+  const enfocado = useRef(false)
+  const ultimoExterno = useRef(valor)
   const timer = useRef<ReturnType<typeof setTimeout>>()
 
+  // igual que en CampoTexto: solo sincronizamos ante un cambio real de la
+  // base, nunca al perder el foco (pisaría lo recién tipeado)
   useEffect(() => {
-    if (!enfocado) setLocal(valor ? String(valor) : '')
-  }, [valor, enfocado])
+    if (valor === ultimoExterno.current) return
+    ultimoExterno.current = valor
+    if (enfocado.current) return
+    setLocal(valor ? String(valor) : '')
+  }, [valor])
+
+  useEffect(() => () => clearTimeout(timer.current), [])
 
   const guardar = (v: string) => {
+    clearTimeout(timer.current)
     const n = v === '' ? 0 : Math.max(0, Math.round(Number(v)))
     if (Number.isNaN(n) || n === valor) return
     db.setCantidad(productoId, configId, medidaId, colorId, n)
@@ -261,10 +272,9 @@ function Celda({ productoId, configId, medidaId, colorId, valor }: {
         clearTimeout(timer.current)
         timer.current = setTimeout(() => guardar(e.target.value), 600)
       }}
-      onFocus={(e) => { setEnfocado(true); e.target.select() }}
+      onFocus={(e) => { enfocado.current = true; e.target.select() }}
       onBlur={() => {
-        setEnfocado(false)
-        clearTimeout(timer.current)
+        enfocado.current = false
         guardar(local)
       }}
       className={`w-full text-center py-1.5 rounded border tabular-nums text-sm

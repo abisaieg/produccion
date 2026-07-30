@@ -33,7 +33,7 @@ export function SeccionNotas({ productoId, notas }: {
     <section className="tarjeta p-4">
       <h3 className="titulo-seccion mb-3">Notas</h3>
 
-      <div className="flex gap-2 mb-4">
+      <div className="flex flex-col sm:flex-row gap-2 mb-4">
         <textarea
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
@@ -41,15 +41,15 @@ export function SeccionNotas({ productoId, notas }: {
             if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); agregar() }
           }}
           rows={2}
-          placeholder="Escribí una nota… (⌘+Enter para guardar)"
+          placeholder="Escribí una nota…"
           className="campo-caja resize-y text-sm flex-1"
         />
         <button
           onClick={agregar}
           disabled={!texto.trim() || guardando}
-          className="btn btn-negro self-end"
+          className="btn btn-negro sm:self-end"
         >
-          Guardar
+          Guardar nota
         </button>
       </div>
 
@@ -66,7 +66,6 @@ export function SeccionNotas({ productoId, notas }: {
               </span>
               <p className="flex-1 whitespace-pre-wrap break-words">{n.texto}</p>
               <BotonBorrar
-                className="opacity-0 group-hover:opacity-100 transition-opacity"
                 onBorrar={() => db.borrar('notas', n.id)}
               />
             </li>

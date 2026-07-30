@@ -46,7 +46,7 @@ export function Ficha({ id, onVolver, onExportar, onDuplicado }: {
           Duplicar
         </button>
         <button onClick={() => onExportar([p.id])} className="btn btn-chico btn-negro">
-          Descargar Excel
+          <span className="hidden sm:inline">Descargar&nbsp;</span>Excel
         </button>
       </div>
 
@@ -87,7 +87,7 @@ export function Ficha({ id, onVolver, onExportar, onDuplicado }: {
                 ))}
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-1 mt-3">
+              <div className="hidden sm:grid grid-cols-4 gap-x-3 gap-y-1 mt-3">
                 <Dato etiqueta="Código">
                   <CampoTexto valor={p.codigo} onGuardar={(v) => set({ codigo: v })}
                               placeholder="—" className="text-sm" />
@@ -114,6 +114,34 @@ export function Ficha({ id, onVolver, onExportar, onDuplicado }: {
                 </Dato>
               </div>
             </div>
+          </div>
+
+          {/* en el celular estos campos van abajo, a dos columnas */}
+          <div className="grid sm:hidden grid-cols-2 gap-x-3 gap-y-1 mt-3">
+            <Dato etiqueta="Código">
+              <CampoTexto valor={p.codigo} onGuardar={(v) => set({ codigo: v })}
+                          placeholder="—" className="text-sm" />
+            </Dato>
+            <Dato etiqueta="Proveedor">
+              <CampoTexto valor={p.proveedor} onGuardar={(v) => set({ proveedor: v })}
+                          placeholder="—" className="text-sm" />
+            </Dato>
+            <Dato etiqueta="Categoría">
+              <CampoTexto valor={p.categoria} onGuardar={(v) => set({ categoria: v })}
+                          placeholder="—" className="text-sm" />
+            </Dato>
+            <Dato etiqueta="Moneda">
+              <select
+                value={p.moneda}
+                onChange={(e) => set({ moneda: e.target.value })}
+                className="campo text-sm cursor-pointer"
+              >
+                <option value="USD">USD</option>
+                <option value="CNY">CNY</option>
+                <option value="ARS">ARS</option>
+                <option value="EUR">EUR</option>
+              </select>
+            </Dato>
           </div>
 
           <div className="mt-3">

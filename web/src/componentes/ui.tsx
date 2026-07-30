@@ -1,16 +1,25 @@
 import { useEffect, useRef, useState } from 'react'
 
 /**
+ * Lo que devuelve una escritura a la base. Los builders de Supabase son
+ * "thenable" pero no Promise, por eso PromiseLike.
+ */
+export type Guardado = void | PromiseLike<unknown>
+
+/**
  * Input que guarda solo, sin botón: espera a que dejes de escribir.
- * Si otra persona edita el mismo campo desde otra compu, el valor de afuera
- * pisa al local únicamente cuando no lo estás tocando.
+ *
+ * Ojo con la sincronización: el valor de afuera solo pisa al local cuando
+ * cambió de verdad en la base. Si dependiera del foco, al hacer click afuera
+ * el valor viejo volvería a la pantalla antes de que termine el guardado y
+ * parecería que se perdió lo escrito.
  */
 export function CampoTexto({
   valor, onGuardar, placeholder, className = '', multilinea = false, filas = 3,
   tipo = 'text', autoFocus = false,
 }: {
   valor: string | null
-  onGuardar: (v: string | null) => void
+  onGuardar: (v: string | null) => Guardado
   placeholder?: string
   className?: string
   multilinea?: boolean
@@ -19,34 +28,48 @@ export function CampoTexto({
   autoFocus?: boolean
 }) {
   const [local, setLocal] = useState(valor ?? '')
-  const [enfocado, setEnfocado] = useState(false)
+  const [fallo, setFallo] = useState(false)
+  const enfocado = useRef(false)
+  const ultimoExterno = useRef(valor ?? '')
   const timer = useRef<ReturnType<typeof setTimeout>>()
 
   useEffect(() => {
-    if (!enfocado) setLocal(valor ?? '')
-  }, [valor, enfocado])
-
-  const cambiar = (v: string) => {
+    const v = valor ?? ''
+    if (v === ultimoExterno.current) return // no cambió afuera: no tocar nada
+    ultimoExterno.current = v
+    if (enfocado.current) return // lo estás escribiendo: no te lo pisamos
     setLocal(v)
-    clearTimeout(timer.current)
-    timer.current = setTimeout(() => onGuardar(v.trim() === '' ? null : v), 600)
-  }
+  }, [valor])
 
-  const salir = () => {
-    setEnfocado(false)
+  useEffect(() => () => clearTimeout(timer.current), [])
+
+  const guardar = async (texto: string) => {
     clearTimeout(timer.current)
-    const limpio = local.trim() === '' ? null : local
-    if (limpio !== valor) onGuardar(limpio)
+    const limpio = texto.trim() === '' ? null : texto
+    if ((limpio ?? '') === (valor ?? '')) return
+
+    const r = await onGuardar(limpio) as { error?: unknown } | undefined
+    if (r && typeof r === 'object' && 'error' in r && r.error) {
+      // no se guardó: devolvemos el campo a lo último confirmado
+      setFallo(true)
+      setLocal(valor ?? '')
+      setTimeout(() => setFallo(false), 2500)
+    }
   }
 
   const props = {
     value: local,
     placeholder,
     autoFocus,
-    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => cambiar(e.target.value),
-    onFocus: () => setEnfocado(true),
-    onBlur: salir,
-    className: `campo ${className}`,
+    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      const v = e.target.value
+      setLocal(v)
+      clearTimeout(timer.current)
+      timer.current = setTimeout(() => guardar(v), 600)
+    },
+    onFocus: () => { enfocado.current = true },
+    onBlur: () => { enfocado.current = false; guardar(local) },
+    className: `campo ${className} ${fallo ? 'border-red-500 bg-red-50' : ''}`,
   }
 
   return multilinea
@@ -54,7 +77,10 @@ export function CampoTexto({
     : <input {...props} type={tipo} inputMode={tipo === 'number' ? 'decimal' : undefined} />
 }
 
-/** Botón de borrar discreto, pide confirmación. */
+/**
+ * Botón de borrar. Siempre visible: si se escondiera hasta pasar el mouse
+ * por encima, en el celular no habría forma de borrar nada.
+ */
 export function BotonBorrar({ onBorrar, titulo = 'Borrar', className = '' }: {
   onBorrar: () => void
   titulo?: string
@@ -64,7 +90,7 @@ export function BotonBorrar({ onBorrar, titulo = 'Borrar', className = '' }: {
 
   useEffect(() => {
     if (!confirmando) return
-    const t = setTimeout(() => setConfirmando(false), 3000)
+    const t = setTimeout(() => setConfirmando(false), 5000)
     return () => clearTimeout(t)
   }, [confirmando])
 
@@ -72,9 +98,10 @@ export function BotonBorrar({ onBorrar, titulo = 'Borrar', className = '' }: {
     return (
       <button
         onClick={() => { onBorrar(); setConfirmando(false) }}
-        className="text-xs px-2 py-1 rounded bg-red-600 text-white font-medium hover:bg-red-700"
+        className="text-xs px-2.5 py-1.5 rounded bg-red-600 text-white font-medium
+                   hover:bg-red-700 shrink-0 whitespace-nowrap"
       >
-        ¿Seguro?
+        Borrar
       </button>
     )
   }
@@ -82,13 +109,49 @@ export function BotonBorrar({ onBorrar, titulo = 'Borrar', className = '' }: {
     <button
       onClick={() => setConfirmando(true)}
       title={titulo}
-      className={`text-neutral-400 hover:text-red-600 transition-colors px-1.5 py-1 ${className}`}
+      className={`text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded
+                  transition-colors p-2 shrink-0 ${className}`}
       aria-label={titulo}
     >
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     </button>
+  )
+}
+
+/**
+ * Campo para dar de alta algo nuevo. A diferencia de CampoTexto no guarda
+ * mientras escribís: crea una sola vez, con Enter o al salir del campo.
+ */
+export function CampoNuevo({ placeholder, onCrear, autoFocus = false }: {
+  placeholder: string
+  onCrear: (texto: string) => void
+  autoFocus?: boolean
+}) {
+  const [texto, setTexto] = useState('')
+  const yaCreo = useRef(false)
+
+  const crear = () => {
+    const limpio = texto.trim()
+    if (!limpio || yaCreo.current) return
+    yaCreo.current = true
+    onCrear(limpio)
+    setTexto('')
+    // permitir cargar otro enseguida
+    setTimeout(() => { yaCreo.current = false }, 400)
+  }
+
+  return (
+    <input
+      value={texto}
+      autoFocus={autoFocus}
+      placeholder={placeholder}
+      onChange={(e) => setTexto(e.target.value)}
+      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); crear() } }}
+      onBlur={crear}
+      className="campo-caja text-sm"
+    />
   )
 }
 

@@ -52,7 +52,7 @@ export function Foto({
           <button
             onClick={(e) => { e.stopPropagation(); onCambio(null) }}
             className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-neutral-900 text-white
-                       text-xs leading-none opacity-0 group-hover:opacity-100 transition-opacity
+                       text-xs leading-none
                        flex items-center justify-center shadow"
             title="Quitar foto"
           >
