@@ -109,10 +109,12 @@ export function BotonBorrar({ onBorrar, titulo = 'Borrar', className = '', confi
  * Campo para dar de alta algo nuevo. A diferencia de CampoTexto no guarda
  * mientras escribís: crea una sola vez, con Enter o al salir del campo.
  */
-export function CampoNuevo({ placeholder, onCrear, autoFocus = false }: {
+export function CampoNuevo({ placeholder, onCrear, autoFocus = false, lista }: {
   placeholder: string
   onCrear: (texto: string) => void
   autoFocus?: boolean
+  /** id de un <datalist> con sugerencias */
+  lista?: string
 }) {
   const [texto, setTexto] = useState('')
   const yaCreo = useRef(false)
@@ -135,6 +137,7 @@ export function CampoNuevo({ placeholder, onCrear, autoFocus = false }: {
       onChange={(e) => setTexto(e.target.value)}
       onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); crear() } }}
       onBlur={crear}
+      list={lista}
       className="campo-caja text-sm"
     />
   )

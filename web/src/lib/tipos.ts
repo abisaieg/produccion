@@ -153,6 +153,13 @@ export function galeriaDe(fotos: Foto[], configId: string): Foto[] {
   return fotos.filter((f) => f.config_id === configId && !f.spec_id)
 }
 
+/**
+ * Detalles que se crean solos con cada estilo, ya listos para cargarles la
+ * foto. Antes había que descubrir el panel de chips y agregarlos a mano, y
+ * no se entendía que las fotos venían después. Se borran si no hacen falta.
+ */
+export const SPECS_INICIALES = ['Packaging', 'Insert']
+
 // Especificaciones que se sugieren al crear un producto nuevo.
 // Son solo un punto de partida: se editan, se borran y se agregan las que quieras.
 export const SPECS_SUGERIDAS = [

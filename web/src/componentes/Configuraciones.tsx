@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { db, duplicarConfig } from '../lib/datos'
-import { deConfig, galeriaDe, type Configuracion, type ProductoCompleto } from '../lib/tipos'
-import { borrarFoto } from '../lib/fotos'
+import {
+  deConfig, galeriaDe, SPECS_INICIALES,
+  type Configuracion, type ProductoCompleto,
+} from '../lib/tipos'
 import { AltaRapida, CampoTexto } from './ui'
-import { Foto } from './Foto'
+import { Imagenes } from './Imagenes'
 import { SeccionSpecs } from './SeccionSpecs'
 import { SeccionMatriz } from './SeccionMatriz'
-import { SeccionGaleria } from './SeccionGaleria'
 
 /**
  * Los estilos del producto: el mismo acolchado a cuadros, a rayas, liso.
@@ -25,7 +26,15 @@ export function Configuraciones({ datos }: { datos: ProductoCompleto }) {
       producto_id: producto.id, nombre, orden: configs.length + i,
     })))
     const creados = (data ?? []) as { id: string }[]
-    if (creados.length) setAbierto(creados[0].id)
+    if (!creados.length) return
+
+    // cada estilo nace con sus detalles básicos listos para la foto
+    await db.agregarVarias('especificaciones', creados.flatMap((c) =>
+      SPECS_INICIALES.map((nombre, i) => ({
+        producto_id: producto.id, config_id: c.id, nombre, orden: i,
+      }))))
+
+    setAbierto(creados[0].id)
   }
 
   const panelAlta = (
@@ -104,6 +113,8 @@ function TarjetaEstilo({ datos, config, numero, abierto, onAbrir, onDuplicado }:
   const fotosGaleria = galeriaDe(datos.fotos, config.id)
   const fotosDetalles = datos.fotos.filter((f) => f.config_id === config.id && f.spec_id)
 
+  const portada = config.foto ?? fotosGaleria[0]?.url ?? null
+
   const unidades = variantes.reduce((s, v) => s + v.cantidad, 0)
   const definidos = specs.filter((s) => s.definido).length
 
@@ -122,8 +133,8 @@ function TarjetaEstilo({ datos, config, numero, abierto, onAbrir, onDuplicado }:
         onClick={onAbrir}
         className="flex items-center gap-3 w-full text-left p-3"
       >
-        {config.foto ? (
-          <img src={config.foto} alt="" className="w-12 h-12 rounded object-cover shrink-0 bg-neutral-100" />
+        {portada ? (
+          <img src={portada} alt="" className="w-12 h-12 rounded object-cover shrink-0 bg-neutral-100" />
         ) : (
           <div className="w-12 h-12 rounded bg-neutral-100 shrink-0 flex items-center
                           justify-center text-neutral-400 text-sm font-medium">
@@ -135,6 +146,7 @@ function TarjetaEstilo({ datos, config, numero, abierto, onAbrir, onDuplicado }:
           <div className="text-xs text-neutral-500 truncate">
             {[
               specs.length ? `${definidos}/${specs.length} detalles` : 'sin detalles',
+              fotosGaleria.length ? `${fotosGaleria.length} fotos` : null,
               medidas.length ? `${medidas.length} medidas` : null,
               colores.length ? `${colores.length} colores` : null,
               unidades ? `${unidades.toLocaleString('es-AR')} u.` : null,
@@ -151,34 +163,18 @@ function TarjetaEstilo({ datos, config, numero, abierto, onAbrir, onDuplicado }:
 
       {abierto && (
         <div className="px-4 pb-4 space-y-6 border-t border-neutral-100 pt-4">
-          {/* nombre, foto y descripción del estilo */}
-          <div className="flex gap-3 items-start">
-            <Foto
-              url={config.foto}
-              tamaño="md"
-              carpeta="configs"
-              etiqueta="Foto"
-              onCambio={(url) => {
-                if (!url && config.foto) borrarFoto(config.foto)
-                db.actualizar('configuraciones', config.id, { foto: url })
-              }}
-            />
-            <div className="flex-1 min-w-0">
-              <CampoTexto
-                valor={config.nombre}
-                onGuardar={(v) => db.actualizar('configuraciones', config.id, { nombre: v ?? 'Sin nombre' })}
-                className="text-base font-semibold -ml-2"
-              />
-              <CampoTexto
-                valor={config.descripcion}
-                onGuardar={(v) => db.actualizar('configuraciones', config.id, { descripcion: v })}
-                placeholder="Qué distingue a este estilo…"
-                className="text-sm text-neutral-600"
-                multilinea
-                filas={2}
-              />
-              <div className="flex gap-1.5 mt-2">
-                <button onClick={duplicar} className="btn btn-chico">Duplicar estilo</button>
+          {/* nombre y texto general del estilo */}
+          <div>
+            <div className="flex items-start gap-2">
+              <div className="flex-1 min-w-0">
+                <CampoTexto
+                  valor={config.nombre}
+                  onGuardar={(v) => db.actualizar('configuraciones', config.id, { nombre: v ?? 'Sin nombre' })}
+                  className="text-base font-semibold -ml-2"
+                />
+              </div>
+              <div className="flex gap-1.5 shrink-0">
+                <button onClick={duplicar} className="btn btn-chico">Duplicar</button>
                 <button
                   onClick={() => {
                     if (confirm(`¿Borrar el estilo "${config.nombre}" con todo su contenido?`)) {
@@ -187,10 +183,29 @@ function TarjetaEstilo({ datos, config, numero, abierto, onAbrir, onDuplicado }:
                   }}
                   className="btn btn-chico text-neutral-500 hover:text-red-600"
                 >
-                  Borrar estilo
+                  Borrar
                 </button>
               </div>
             </div>
+            <CampoTexto
+              valor={config.descripcion}
+              onGuardar={(v) => db.actualizar('configuraciones', config.id, { descripcion: v })}
+              placeholder="Texto general del diseño: qué lo distingue…"
+              className="text-sm text-neutral-600"
+              multilinea
+              filas={2}
+            />
+          </div>
+
+          {/* fotos del diseño: todas las que quieras, cada una con su texto */}
+          <div>
+            <h4 className="titulo-seccion mb-2">Fotos del diseño</h4>
+            <Imagenes
+              productoId={producto.id}
+              configId={config.id}
+              fotos={fotosGaleria}
+              etiquetaVacio="Foto"
+            />
           </div>
 
           <SeccionSpecs
@@ -208,12 +223,6 @@ function TarjetaEstilo({ datos, config, numero, abierto, onAbrir, onDuplicado }:
             medidas={medidas}
             colores={colores}
             variantes={variantes}
-          />
-
-          <SeccionGaleria
-            productoId={producto.id}
-            configId={config.id}
-            fotos={fotosGaleria}
           />
         </div>
       )}

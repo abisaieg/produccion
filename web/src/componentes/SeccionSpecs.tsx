@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { db } from '../lib/datos'
 import { SPECS_SUGERIDAS, type Especificacion, type Foto } from '../lib/tipos'
 import { BotonBorrar, CampoNuevo, CampoTexto } from './ui'
@@ -24,9 +24,6 @@ export function SeccionSpecs({
   titulo?: string
   sinCaja?: boolean
 }) {
-  const [agregando, setAgregando] = useState(specs.length === 0)
-
-  // el panel queda abierto: normalmente se cargan varios detalles seguidos
   const agregar = (nombre: string) =>
     db.agregar('especificaciones', {
       producto_id: productoId,
@@ -51,38 +48,7 @@ export function SeccionSpecs({
             </span>
           )}
         </h3>
-        {specs.length > 0 && (
-          <button onClick={() => setAgregando(!agregando)} className="btn btn-chico shrink-0">
-            {agregando ? 'Listo' : '+ Detalle'}
-          </button>
-        )}
       </div>
-
-      {agregando && (
-        <div className="mb-4 p-3 bg-neutral-50 rounded border border-neutral-200">
-          <p className="text-xs text-neutral-500 mb-2">
-            Tocá uno para agregarlo, o escribí otro nombre.
-          </p>
-          {sinUsar.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {sinUsar.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => agregar(s)}
-                  className="text-xs px-2.5 py-1.5 rounded-full border border-neutral-300
-                             bg-white hover:bg-neutral-900 hover:text-white transition-colors"
-                >
-                  + {s}
-                </button>
-              ))}
-            </div>
-          )}
-          <CampoNuevo
-            placeholder="Otro detalle (ej: Tipo de cierre) y Enter"
-            onCrear={agregar}
-          />
-        </div>
-      )}
 
       <div className="divide-y divide-neutral-100">
         {specs.map((s) => (
@@ -94,8 +60,42 @@ export function SeccionSpecs({
             fotos={fotos.filter((f) => f.spec_id === s.id)}
           />
         ))}
+
+        {/* fila libre, siempre al final: elegís vos qué detalle agregar */}
+        <FilaNueva sugerencias={sinUsar} onCrear={agregar} />
       </div>
     </section>
+  )
+}
+
+/**
+ * La última fila, vacía y siempre disponible. Se elige de la lista o se
+ * escribe cualquier otro nombre; al confirmarlo se crea el detalle de
+ * verdad y aparece una fila nueva debajo.
+ */
+function FilaNueva({ sugerencias, onCrear }: {
+  sugerencias: string[]
+  onCrear: (nombre: string) => void
+}) {
+  const listaId = useId()
+
+  return (
+    <div className="flex items-center gap-2 py-3">
+      <div className="w-5 h-5 shrink-0 rounded border border-dashed border-neutral-300" />
+      <div className="w-32 sm:w-40 shrink-0">
+        <CampoNuevo
+          placeholder="Otro detalle…"
+          onCrear={onCrear}
+          lista={listaId}
+        />
+      </div>
+      <datalist id={listaId}>
+        {sugerencias.map((s) => <option key={s} value={s} />)}
+      </datalist>
+      <p className="text-xs text-neutral-400 flex-1 min-w-0 truncate">
+        Elegí uno de la lista o escribí el que quieras y apretá Enter.
+      </p>
+    </div>
   )
 }
 
@@ -115,7 +115,9 @@ function FilaSpec({ spec, productoId, configId, fotos }: {
         <div className="flex items-center gap-2 mb-2">
           <button
             onClick={() => set({ definido: !spec.definido })}
-            title={spec.definido ? 'Definido' : 'Marcar como definido'}
+            title={spec.definido
+              ? 'Ya definido con la fábrica — tocá para desmarcar'
+              : 'Marcar cuando quede definido con la fábrica'}
             className={`w-5 h-5 shrink-0 rounded border flex items-center justify-center
                         transition-colors ${spec.definido
                           ? 'bg-neutral-900 border-neutral-900 text-white'
