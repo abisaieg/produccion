@@ -40,6 +40,7 @@ export default function App() {
           onVolver={volver}
           onExportar={setExportando}
           onDuplicado={abrir}
+          onAviso={setAviso}
         />
       ) : (
         <Lista onAbrir={abrir} onExportar={setExportando} />

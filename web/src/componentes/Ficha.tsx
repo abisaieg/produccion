@@ -7,11 +7,12 @@ import { SeccionSpecs } from './SeccionSpecs'
 import { SeccionNotas } from './SeccionNotas'
 import { Configuraciones } from './Configuraciones'
 
-export function Ficha({ id, onVolver, onExportar, onDuplicado }: {
+export function Ficha({ id, onVolver, onExportar, onDuplicado, onAviso }: {
   id: string
   onVolver: () => void
   onExportar: (ids: string[]) => void
   onDuplicado: (nuevoId: string) => void
+  onAviso: (mensaje: string) => void
 }) {
   const { datos, cargando } = useProducto(id)
 
@@ -171,13 +172,14 @@ export function Ficha({ id, onVolver, onExportar, onDuplicado }: {
           />
         </section>
 
-        <Configuraciones datos={datos} />
+        <Configuraciones datos={datos} onAviso={onAviso} />
 
         <SeccionSpecs
           productoId={p.id}
           specs={specsGenerales}
           fotos={fotosGenerales}
           titulo="Detalles iguales en todos los estilos"
+          onAviso={onAviso}
         />
 
         <SeccionNotas productoId={p.id} notas={notas} />

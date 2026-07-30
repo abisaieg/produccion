@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "prueba": "vite-node src/prueba-flujo.ts",
     "deploy": "npm run build && gh-pages -d dist",
-    "prueba-fotos": "vite-node src/prueba-fotos.ts"
+    "prueba-fotos": "vite-node src/prueba-fotos.ts",
+    "prueba-copiar": "vite-node src/prueba-copiar.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

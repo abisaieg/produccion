@@ -3,6 +3,7 @@ import { db } from '../lib/datos'
 import { SPECS_SUGERIDAS, type Especificacion, type Foto } from '../lib/tipos'
 import { BotonBorrar, CampoNuevo, CampoTexto } from './ui'
 import { ElegirOpcion } from './ElegirOpcion'
+import { CopiarDetalle } from './CopiarDetalle'
 import { Imagenes } from './Imagenes'
 
 /**
@@ -13,7 +14,7 @@ import { Imagenes } from './Imagenes'
  * opciones ya cargadas con su foto para reusarlas entre estilos.
  */
 export function SeccionSpecs({
-  productoId, configId = null, specs, fotos, titulo, sinCaja = false,
+  productoId, configId = null, specs, fotos, titulo, sinCaja = false, onAviso,
 }: {
   productoId: string
   /** null = detalles generales del producto; con valor = detalles de ese estilo */
@@ -23,6 +24,7 @@ export function SeccionSpecs({
   fotos: Foto[]
   titulo?: string
   sinCaja?: boolean
+  onAviso?: (mensaje: string) => void
 }) {
   const agregar = (nombre: string) =>
     db.agregar('especificaciones', {
@@ -58,6 +60,7 @@ export function SeccionSpecs({
             productoId={productoId}
             configId={configId}
             fotos={fotos.filter((f) => f.spec_id === s.id)}
+            onAviso={onAviso}
           />
         ))}
 
@@ -99,13 +102,15 @@ function FilaNueva({ sugerencias, onCrear }: {
   )
 }
 
-function FilaSpec({ spec, productoId, configId, fotos }: {
+function FilaSpec({ spec, productoId, configId, fotos, onAviso }: {
   spec: Especificacion
   productoId: string
   configId: string | null
   fotos: Foto[]
+  onAviso?: (mensaje: string) => void
 }) {
   const [eligiendo, setEligiendo] = useState(false)
+  const [copiando, setCopiando] = useState(false)
   const set = (cambios: Record<string, unknown>) =>
     db.actualizar('especificaciones', spec.id, cambios)
 
@@ -149,6 +154,15 @@ function FilaSpec({ spec, productoId, configId, fotos }: {
           </div>
 
           <button
+            onClick={() => setCopiando(true)}
+            title="Copiar este detalle a otros diseños o productos"
+            className="text-xs text-neutral-400 hover:text-neutral-900 underline
+                       whitespace-nowrap shrink-0"
+          >
+            copiar a…
+          </button>
+
+          <button
             onClick={() => setEligiendo(true)}
             title="Traer de la biblioteca"
             className="text-xs text-neutral-400 hover:text-neutral-900 underline
@@ -178,6 +192,16 @@ function FilaSpec({ spec, productoId, configId, fotos }: {
           </button>
         </div>
       </div>
+
+      {copiando && (
+        <CopiarDetalle
+          spec={spec}
+          imagenes={fotos}
+          configActual={configId}
+          onCerrar={() => setCopiando(false)}
+          onListo={(m) => onAviso?.(m)}
+        />
+      )}
 
       {eligiendo && (
         <ElegirOpcion

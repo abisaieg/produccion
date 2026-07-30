@@ -186,6 +186,98 @@ export const db = {
     )),
 }
 
+// --------------------------------------------------------------- destinos
+
+/** Un lugar al que se puede copiar un detalle. */
+export interface Destino {
+  productoId: string
+  productoNombre: string
+  /** null = los detalles generales del producto */
+  configId: string | null
+  configNombre: string
+  foto: string | null
+}
+
+/**
+ * Todos los diseños de todos los productos, con una foto para reconocerlos.
+ * Es la lista que se muestra al copiar un detalle a otro lado.
+ */
+export async function traerDestinos(): Promise<Destino[]> {
+  const [prods, cfgs, fotos] = await Promise.all([
+    supabase.from('productos').select('id,nombre,foto,archivado').order('updated_at', { ascending: false }),
+    supabase.from('configuraciones').select('id,producto_id,nombre,foto').order('orden'),
+    supabase.from('fotos').select('config_id,url,orden').is('spec_id', null).order('orden'),
+  ])
+
+  const productos = ((prods.data ?? []) as { id: string; nombre: string; foto: string | null; archivado: boolean }[])
+    .filter((p) => !p.archivado)
+  const configs = (cfgs.data ?? []) as { id: string; producto_id: string; nombre: string; foto: string | null }[]
+
+  // primera foto de cada diseño, para la miniatura
+  const portada = new Map<string, string>()
+  for (const f of (fotos.data ?? []) as { config_id: string | null; url: string }[]) {
+    if (f.config_id && !portada.has(f.config_id)) portada.set(f.config_id, f.url)
+  }
+
+  const out: Destino[] = []
+  for (const p of productos) {
+    out.push({
+      productoId: p.id,
+      productoNombre: p.nombre,
+      configId: null,
+      configNombre: 'Detalles generales',
+      foto: p.foto,
+    })
+    for (const c of configs.filter((x) => x.producto_id === p.id)) {
+      out.push({
+        productoId: p.id,
+        productoNombre: p.nombre,
+        configId: c.id,
+        configNombre: c.nombre,
+        foto: c.foto ?? portada.get(c.id) ?? null,
+      })
+    }
+  }
+  return out
+}
+
+/**
+ * Copia un detalle —con su texto y todas sus imágenes— a otros diseños,
+ * del mismo producto o de otros. Las imágenes se referencian, no se vuelven
+ * a subir: es el mismo archivo del storage.
+ */
+export async function copiarSpecA(
+  spec: { nombre: string; valor: string | null; foto: string | null; definido: boolean; opcion_id: string | null },
+  imagenes: { url: string; titulo: string | null }[],
+  destinos: Destino[],
+) {
+  for (const d of destinos) {
+    const { data } = await supabase.from('especificaciones').insert({
+      producto_id: d.productoId,
+      config_id: d.configId,
+      opcion_id: spec.opcion_id,
+      nombre: spec.nombre,
+      valor: spec.valor,
+      foto: spec.foto,
+      definido: spec.definido,
+      orden: 99,
+    }).select().single()
+    if (!data) continue
+
+    if (imagenes.length) {
+      await supabase.from('fotos').insert(imagenes.map((im, i) => ({
+        producto_id: d.productoId,
+        config_id: d.configId,
+        spec_id: data.id as string,
+        url: im.url,
+        titulo: im.titulo,
+        orden: i,
+      })))
+    }
+  }
+  avisarCambio()
+}
+
 // ------------------------------------------------------------- duplicados
 
 /** Copia una configuración completa dentro del mismo producto. */

@@ -16,7 +16,10 @@ import { SeccionMatriz } from './SeccionMatriz'
  * uno y no quedaba claro que el producto podía tener varios, así que los
  * estilos terminaban cargándose como si fueran detalles.
  */
-export function Configuraciones({ datos }: { datos: ProductoCompleto }) {
+export function Configuraciones({ datos, onAviso }: {
+  datos: ProductoCompleto
+  onAviso: (mensaje: string) => void
+}) {
   const { producto, configs } = datos
   const [agregando, setAgregando] = useState(false)
   const [abierto, setAbierto] = useState<string | null>(configs[0]?.id ?? null)
@@ -89,6 +92,7 @@ export function Configuraciones({ datos }: { datos: ProductoCompleto }) {
               abierto={abierto === c.id}
               onAbrir={() => setAbierto(abierto === c.id ? null : c.id)}
               onDuplicado={setAbierto}
+              onAviso={onAviso}
             />
           ))}
         </div>
@@ -97,13 +101,14 @@ export function Configuraciones({ datos }: { datos: ProductoCompleto }) {
   )
 }
 
-function TarjetaEstilo({ datos, config, numero, abierto, onAbrir, onDuplicado }: {
+function TarjetaEstilo({ datos, config, numero, abierto, onAbrir, onDuplicado, onAviso }: {
   datos: ProductoCompleto
   config: Configuracion
   numero: number
   abierto: boolean
   onAbrir: () => void
   onDuplicado: (id: string) => void
+  onAviso: (mensaje: string) => void
 }) {
   const { producto, configs } = datos
   const medidas = deConfig(datos.medidas, config.id)
@@ -215,6 +220,7 @@ function TarjetaEstilo({ datos, config, numero, abierto, onAbrir, onDuplicado }:
             fotos={fotosDetalles}
             titulo={`Packaging y detalles de ${config.nombre}`}
             sinCaja
+            onAviso={onAviso}
           />
 
           <SeccionMatriz
