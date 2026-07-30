@@ -1,6 +1,7 @@
 // Prueba de extremo a extremo usando el MISMO código que usa la app,
 // contra la base real. Se ejecuta con: npx vite-node src/prueba-flujo.ts
 import { supabase } from './lib/supabase'
+import { entrarConPin } from './lib/auth'
 import { db, duplicarConfig, duplicarProducto, traerCompletos } from './lib/datos'
 import { deConfig } from './lib/tipos'
 import { comoDetalle, crearOpcion } from './lib/biblioteca'
@@ -11,10 +12,8 @@ function chequear(ok: boolean, texto: string, detalle = '') {
   if (!ok) fallos++
 }
 
-const { error: errLogin } = await supabase.auth.signInWithPassword({
-  email: 'equipo@produccion.app',
-  password: 'CREDENCIAL-ELIMINADA',
-})
+// El PIN sale de `web/.env` (VITE_PIN_PRUEBA), igual que la sal. Nada de credenciales acá.
+const errLogin = await entrarConPin(import.meta.env.VITE_PIN_PRUEBA).then(() => null, (e: Error) => e)
 chequear(!errLogin, 'entrar con el PIN', errLogin?.message)
 
 // ---------------------------------------------------------------- alta

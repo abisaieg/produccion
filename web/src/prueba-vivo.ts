@@ -1,10 +1,9 @@
 // ¿La conexión "en vivo" (Realtime) realmente avisa de los cambios?
 import { supabase } from './lib/supabase'
+import { entrarConPin } from './lib/auth'
 
-await supabase.auth.signInWithPassword({
-  email: 'equipo@produccion.app',
-  password: 'CREDENCIAL-ELIMINADA',
-})
+// El PIN sale de `web/.env` (VITE_PIN_PRUEBA), igual que la sal. Nada de credenciales acá.
+await entrarConPin(import.meta.env.VITE_PIN_PRUEBA)
 
 let avisos = 0
 const canal = supabase
