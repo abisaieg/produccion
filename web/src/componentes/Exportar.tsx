@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { traerCompletos } from '../lib/datos'
-import { descargar, generarExcel, nombreArchivo } from '../lib/excel'
+import { descargar, generarExcel, imagenesQueFaltaron, nombreArchivo } from '../lib/excel'
 import type { Idioma } from '../lib/traducir'
 import type { ProductoCompleto } from '../lib/tipos'
 import { Modal } from './ui'
@@ -45,7 +45,11 @@ export function Exportar({ ids, onCerrar, onListo }: {
 
       const blob = await generarExcel(productos, { conFotos, idioma })
       descargar(blob, nombreArchivo(productos))
-      onListo('Excel descargado')
+
+      const faltaron = imagenesQueFaltaron().length
+      onListo(faltaron
+        ? `Excel descargado — ${faltaron} ${faltaron === 1 ? 'imagen no pudo incluirse' : 'imágenes no pudieron incluirse'}`
+        : 'Excel descargado')
       onCerrar()
     } catch (e) {
       onListo(e instanceof Error ? e.message : 'No se pudo generar el Excel')

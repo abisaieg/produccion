@@ -87,16 +87,31 @@ function textosDe(productos: ProductoCompleto[]): string[] {
 const de = <T extends { config_id: string | null }>(lista: T[], cid: string) =>
   lista.filter((x) => x.config_id === cid)
 
+/** Imágenes que no se pudieron incluir en la última exportación. */
+let imagenesOmitidas: string[] = []
+
+export function imagenesQueFaltaron() {
+  return imagenesOmitidas
+}
+
 async function bajarImagen(url: string) {
   try {
     const res = await fetch(url)
-    if (!res.ok) return null
+    if (!res.ok) {
+      imagenesOmitidas.push('archivo no encontrado')
+      return null
+    }
     const tipo = res.headers.get('content-type') ?? ''
     const ext = tipo.includes('png') ? 'png' : tipo.includes('gif') ? 'gif'
       : tipo.includes('jpeg') || tipo.includes('jpg') ? 'jpeg' : null
-    if (!ext) return null // webp/heic: Excel no los soporta
+    if (!ext) {
+      // webp/heic: Excel no los soporta
+      imagenesOmitidas.push(`formato ${tipo.replace('image/', '')}`)
+      return null
+    }
     return { buffer: await res.arrayBuffer(), extension: ext as 'png' | 'gif' | 'jpeg' }
   } catch {
+    imagenesOmitidas.push('no se pudo descargar')
     return null
   }
 }
@@ -128,6 +143,8 @@ export async function generarExcel(
   productos: ProductoCompleto[],
   op: OpcionesExport,
 ): Promise<Blob> {
+  imagenesOmitidas = []
+
   const tr: Traducciones = op.idioma === 'es'
     ? new Map()
     : await traducir(textosDe(productos))
@@ -357,8 +374,11 @@ async function hojaProducto(
   const varias = mostrarVersiones(p)
   for (const cfg of p.configs) {
     if (varias) {
-      seccion(ctx, `ESTILO: ${cfg.nombre}`, `STYLE: ${valorCorto(cfg.nombre, tr, idioma)}`,
-        `${cfg.nombre}`)
+      // el nombre del estilo se traduce una sola vez: si se armara con
+      // valorCorto quedaría "ESTILO: Diseño 1 / STYLE: Diseño 1 / Design 1"
+      const nom = tr.get(cfg.nombre.trim())
+      const nomEn = idioma === 'es' || !nom ? cfg.nombre : nom
+      seccion(ctx, `ESTILO: ${cfg.nombre}`, `STYLE: ${nomEn}`)
       if (cfg.descripcion) {
         const r = ws.getRow(ctx.fila)
         r.getCell(1).value = valor(cfg.descripcion, tr, idioma)

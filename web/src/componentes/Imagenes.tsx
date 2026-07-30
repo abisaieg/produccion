@@ -20,7 +20,34 @@ export function Imagenes({ productoId, configId, specId, fotos, tamaño = 'md', 
 }) {
   const [subiendo, setSubiendo] = useState(0)
   const [ampliada, setAmpliada] = useState<string | null>(null)
+  /** imágenes cuyo archivo ya no está: se puede volver a subirlas */
+  const [rotas, setRotas] = useState<Set<string>>(new Set())
   const input = useRef<HTMLInputElement>(null)
+  const inputArreglo = useRef<HTMLInputElement>(null)
+  const arreglando = useRef<string | null>(null)
+  const reemplazar = useRef<(fotoId: string) => void>()
+
+  reemplazar.current = (fotoId: string) => {
+    arreglando.current = fotoId
+    inputArreglo.current?.click()
+  }
+
+  async function resubir(file: File | undefined | null) {
+    const fotoId = arreglando.current
+    arreglando.current = null
+    if (!file || !fotoId) return
+    try {
+      const url = await subirFoto(file, specId ? 'detalles' : 'galeria')
+      await db.actualizar('fotos', fotoId, { url })
+      setRotas((s) => {
+        const n = new Set(s)
+        n.delete(fotoId)
+        return n
+      })
+    } catch {
+      // queda marcada como rota para reintentar
+    }
+  }
 
   // anchos generosos: el texto de cada imagen tiene que leerse entero
   const medida = tamaño === 'sm' ? 'w-28' : 'w-36'
@@ -63,17 +90,39 @@ export function Imagenes({ productoId, configId, specId, fotos, tamaño = 'md', 
         className="hidden"
         onChange={(e) => { subirVarias(e.target.files); e.target.value = '' }}
       />
+      <input
+        ref={inputArreglo}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => { resubir(e.target.files?.[0]); e.target.value = '' }}
+      />
 
       {fotos.map((f) => (
         <div key={f.id} className={`${medida} shrink-0`}>
           <div className="relative aspect-square">
-            <img
-              src={f.url}
-              alt={f.titulo ?? ''}
-              onClick={() => setAmpliada(f.url)}
-              className="w-full h-full object-cover rounded border border-neutral-200
-                         cursor-zoom-in bg-neutral-100"
-            />
+            {rotas.has(f.id) ? (
+              // el archivo no está: se conserva el texto y se puede resubir
+              <button
+                onClick={() => reemplazar.current?.(f.id)}
+                className="w-full h-full rounded border-2 border-dashed border-amber-400
+                           bg-amber-50 flex flex-col items-center justify-center
+                           text-amber-700 px-1 text-center hover:bg-amber-100"
+                title="La imagen no está guardada: tocá para subirla de nuevo"
+              >
+                <span className="text-lg leading-none">↻</span>
+                <span className="text-[10px] mt-1 leading-tight">Subir de nuevo</span>
+              </button>
+            ) : (
+              <img
+                src={f.url}
+                alt={f.titulo ?? ''}
+                onClick={() => setAmpliada(f.url)}
+                onError={() => setRotas((s) => new Set(s).add(f.id))}
+                className="w-full h-full object-cover rounded border border-neutral-200
+                           cursor-zoom-in bg-neutral-100"
+              />
+            )}
             <button
               onClick={() => { borrarFoto(f.url); db.borrar('fotos', f.id) }}
               className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white
