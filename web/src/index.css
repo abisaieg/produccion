@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  @apply bg-neutral-50 text-neutral-900 antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* los inputs no hacen zoom en iOS si miden 16px */
+input, textarea, select {
+  font-size: 16px;
+}
+
+@layer components {
+  .campo {
+    @apply w-full bg-transparent border border-transparent rounded px-2 py-1.5
+           hover:border-neutral-200 focus:border-neutral-900 focus:bg-white
+           focus:outline-none transition-colors;
+  }
+  .campo-caja {
+    @apply w-full bg-white border border-neutral-300 rounded px-3 py-2
+           focus:border-neutral-900 focus:outline-none transition-colors;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded
+           border border-neutral-300 bg-white text-sm font-medium
+           hover:bg-neutral-100 active:bg-neutral-200 transition-colors
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .btn-negro {
+    @apply bg-neutral-900 text-white border-neutral-900
+           hover:bg-neutral-700 active:bg-neutral-800;
+  }
+  .btn-chico {
+    @apply px-2 py-1 text-xs;
+  }
+  .tarjeta {
+    @apply bg-white border border-neutral-200 rounded-lg;
+  }
+  .titulo-seccion {
+    @apply text-xs font-semibold uppercase tracking-wider text-neutral-500;
+  }
+}
+
+/* scrollbar discreta en desktop */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { @apply bg-neutral-300 rounded; }
+::-webkit-scrollbar-thumb:hover { @apply bg-neutral-400; }
