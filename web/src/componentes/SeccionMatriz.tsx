@@ -125,21 +125,20 @@ export function SeccionMatriz({ producto, configId, medidas, colores, variantes 
                 <tr key={m.id} className="group border-t border-neutral-100">
                   {/* el tacho va acá y no al final: en el celular, al final
                       de la tabla quedaría fuera de la pantalla */}
-                  <td className="py-1.5 pr-3 sticky left-0 bg-white z-10">
-                    <div className="flex items-start gap-1">
-                      <div className="flex-1 min-w-0">
-                        <CampoTexto
-                          valor={m.nombre}
-                          onGuardar={(v) => db.actualizar('medidas', m.id, { nombre: v ?? 'Sin nombre' })}
-                          className="text-sm font-medium"
-                        />
-                        <CampoTexto
-                          valor={m.detalle}
-                          onGuardar={(v) => db.actualizar('medidas', m.id, { detalle: v })}
-                          placeholder="240 x 260 cm"
-                          className="text-xs text-neutral-500"
-                        />
-                      </div>
+                  {/* nombre, medida y tacho en una sola línea */}
+                  <td className="py-1 pr-3 sticky left-0 bg-white z-10">
+                    <div className="flex items-center gap-1">
+                      <CampoTexto
+                        valor={m.nombre}
+                        onGuardar={(v) => db.actualizar('medidas', m.id, { nombre: v ?? 'Sin nombre' })}
+                        className="text-sm font-medium flex-1 min-w-0"
+                      />
+                      <CampoTexto
+                        valor={m.detalle}
+                        onGuardar={(v) => db.actualizar('medidas', m.id, { detalle: v })}
+                        placeholder="240 x 260"
+                        className="text-xs text-neutral-500 w-24 shrink-0"
+                      />
                       <BotonBorrar
                         titulo="Borrar medida"
                         onBorrar={() => db.borrar('medidas', m.id)}
@@ -223,31 +222,31 @@ export function SeccionMatriz({ producto, configId, medidas, colores, variantes 
 
 // ------------------------------------------------------------- encabezado
 
+/** Muestra de color, nombre y cruz para quitarlo, todo en una línea. */
 function EncabezadoColor({ color }: { color: Color }) {
   return (
-    <div className="group/col flex flex-col items-center gap-1">
-      <div className="flex items-center gap-1 w-full">
-        <input
-          type="color"
-          value={color.hex ?? '#cccccc'}
-          onChange={(e) => db.actualizar('colores', color.id, { hex: e.target.value })}
-          className="w-4 h-4 shrink-0 rounded-full border border-neutral-300 cursor-pointer
-                     appearance-none p-0 overflow-hidden"
-          style={{ backgroundColor: color.hex ?? '#cccccc' }}
-          title="Color de referencia"
-        />
-        <CampoTexto
-          valor={color.nombre}
-          onGuardar={(v) => db.actualizar('colores', color.id, { nombre: v ?? 'Sin nombre' })}
-          className="text-xs font-medium text-center px-1"
-        />
-      </div>
+    <div className="flex items-center gap-0.5 w-full">
+      <input
+        type="color"
+        value={color.hex ?? '#cccccc'}
+        onChange={(e) => db.actualizar('colores', color.id, { hex: e.target.value })}
+        className="w-4 h-4 shrink-0 rounded-full border border-neutral-300 cursor-pointer
+                   appearance-none p-0 overflow-hidden"
+        style={{ backgroundColor: color.hex ?? '#cccccc' }}
+        title="Color de referencia"
+      />
+      <CampoTexto
+        valor={color.nombre}
+        onGuardar={(v) => db.actualizar('colores', color.id, { nombre: v ?? 'Sin nombre' })}
+        className="text-xs font-medium px-1 flex-1 min-w-0"
+      />
       <button
         onClick={() => db.borrar('colores', color.id)}
-        className="text-[10px] text-neutral-400 hover:text-red-600 transition-colors
-                   leading-none px-2 py-1"
+        title="Quitar color"
+        className="text-neutral-300 hover:text-red-600 transition-colors shrink-0
+                   text-sm leading-none px-1"
       >
-        quitar
+        ×
       </button>
     </div>
   )

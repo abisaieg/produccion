@@ -169,12 +169,14 @@ export function Ficha({ id, onVolver, onExportar, onDuplicado }: {
           />
         </section>
 
+        <Configuraciones datos={datos} />
+
         <SeccionSpecs
           productoId={p.id}
           specs={specsGenerales}
-          titulo="Detalles generales"
+          titulo="Detalles iguales en todos los estilos"
         />
-        <Configuraciones datos={datos} />
+
         <SeccionNotas productoId={p.id} notas={notas} />
 
         {/* pie */}

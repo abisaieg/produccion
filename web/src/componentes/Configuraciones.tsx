@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { db, duplicarConfig } from '../lib/datos'
-import { deConfig, type ProductoCompleto } from '../lib/tipos'
+import { deConfig, type Configuracion, type ProductoCompleto } from '../lib/tipos'
 import { borrarFoto } from '../lib/fotos'
 import { AltaRapida, CampoTexto } from './ui'
 import { Foto } from './Foto'
@@ -9,153 +9,174 @@ import { SeccionMatriz } from './SeccionMatriz'
 import { SeccionGaleria } from './SeccionGaleria'
 
 /**
- * Los estilos del producto (el acolchado a cuadros y el a rayas).
- * Cuando hay una sola no se muestran solapas: el concepto no molesta hasta
- * que hace falta.
+ * Los estilos del producto: el mismo acolchado a cuadros, a rayas, liso.
+ *
+ * Van como tarjetas apiladas y no como solapas: con solapas se veían de a
+ * uno y no quedaba claro que el producto podía tener varios, así que los
+ * estilos terminaban cargándose como si fueran detalles.
  */
 export function Configuraciones({ datos }: { datos: ProductoCompleto }) {
   const { producto, configs } = datos
-  const [activa, setActiva] = useState<string | null>(configs[0]?.id ?? null)
   const [agregando, setAgregando] = useState(false)
+  const [abierto, setAbierto] = useState<string | null>(configs[0]?.id ?? null)
 
-  // si borran la configuración abierta, saltar a la primera que quede
-  useEffect(() => {
-    if (!configs.length) { setActiva(null); return }
-    if (!activa || !configs.some((c) => c.id === activa)) setActiva(configs[0].id)
-  }, [configs, activa])
-
-  const config = configs.find((c) => c.id === activa) ?? configs[0]
-
-  const total = (cid: string) =>
-    datos.variantes.filter((v) => v.config_id === cid).reduce((s, v) => s + v.cantidad, 0)
-
-  const agregarVarias = async (nombres: string[]) => {
+  const agregarVarios = async (nombres: string[]) => {
     const { data } = await db.agregarVarias('configuraciones', nombres.map((nombre, i) => ({
       producto_id: producto.id, nombre, orden: configs.length + i,
     })))
-    const creadas = (data ?? []) as { id: string }[]
-    if (creadas.length) setActiva(creadas[0].id)
+    const creados = (data ?? []) as { id: string }[]
+    if (creados.length) setAbierto(creados[0].id)
   }
-
-  const duplicar = async () => {
-    if (!config) return
-    const nueva = await duplicarConfig(producto.id, {
-      config,
-      specs: deConfig(datos.specs, config.id),
-      medidas: deConfig(datos.medidas, config.id),
-      colores: deConfig(datos.colores, config.id),
-      variantes: deConfig(datos.variantes, config.id),
-      fotos: deConfig(datos.fotos, config.id),
-    }, configs.length)
-    if (nueva) setActiva(nueva)
-  }
-
-  const varias = configs.length > 1
 
   const panelAlta = (
     <AltaRapida
       etiqueta="Estilos"
-      ejemplo="A cuadros, A rayas, Liso, Estampado"
-      onCrear={agregarVarias}
+      ejemplo="Diseño 1, Diseño 2, Diseño 3, Diseño 4"
+      onCrear={agregarVarios}
       onCerrar={() => setAgregando(false)}
     />
   )
 
-  if (!config) {
-    return (
-      <section className="tarjeta p-4">
-        {agregando ? panelAlta : (
-          <div className="text-center">
-            <p className="text-sm text-neutral-400 mb-3">Este producto no tiene ningún estilo.</p>
-            <button onClick={() => setAgregando(true)} className="btn btn-chico">
+  return (
+    <section>
+      <div className="flex items-center justify-between mb-1 gap-2">
+        <h3 className="titulo-seccion">
+          Estilos del producto
+          {configs.length > 0 && (
+            <span className="ml-2 font-normal normal-case tracking-normal text-neutral-400">
+              {configs.length}
+            </span>
+          )}
+        </h3>
+        <button onClick={() => setAgregando(!agregando)} className="btn btn-chico shrink-0">
+          {agregando ? 'Listo' : '+ Estilos'}
+        </button>
+      </div>
+      <p className="text-xs text-neutral-500 mb-3">
+        Cada estilo lleva su propio packaging, sus medidas, sus colores y sus cantidades.
+      </p>
+
+      {agregando && panelAlta}
+
+      {configs.length === 0 ? (
+        agregando ? null : (
+          <div className="tarjeta p-6 text-center">
+            <p className="text-sm text-neutral-400 mb-3">
+              Este producto todavía no tiene estilos.
+            </p>
+            <button onClick={() => setAgregando(true)} className="btn btn-negro">
               + Agregar estilos
             </button>
           </div>
-        )}
-      </section>
-    )
+        )
+      ) : (
+        <div className="space-y-3">
+          {configs.map((c, i) => (
+            <TarjetaEstilo
+              key={c.id}
+              datos={datos}
+              config={c}
+              numero={i + 1}
+              abierto={abierto === c.id}
+              onAbrir={() => setAbierto(abierto === c.id ? null : c.id)}
+              onDuplicado={setAbierto}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function TarjetaEstilo({ datos, config, numero, abierto, onAbrir, onDuplicado }: {
+  datos: ProductoCompleto
+  config: Configuracion
+  numero: number
+  abierto: boolean
+  onAbrir: () => void
+  onDuplicado: (id: string) => void
+}) {
+  const { producto, configs } = datos
+  const medidas = deConfig(datos.medidas, config.id)
+  const colores = deConfig(datos.colores, config.id)
+  const variantes = deConfig(datos.variantes, config.id)
+  const specs = deConfig(datos.specs, config.id)
+  const fotos = deConfig(datos.fotos, config.id)
+
+  const unidades = variantes.reduce((s, v) => s + v.cantidad, 0)
+  const definidos = specs.filter((s) => s.definido).length
+
+  const duplicar = async () => {
+    const nuevo = await duplicarConfig(producto.id, {
+      config, specs, medidas, colores, variantes, fotos,
+    }, configs.length)
+    if (nuevo) onDuplicado(nuevo)
   }
 
   return (
-    <section className="tarjeta overflow-hidden">
-      {/* solapas: solo cuando hay más de un estilo */}
-      {varias && (
-        <div className="flex gap-1 px-2 pt-2 border-b border-neutral-200 overflow-x-auto">
-          {configs.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => setActiva(c.id)}
-              className={`px-3 py-2 text-sm rounded-t whitespace-nowrap transition-colors
-                          border-b-2 -mb-px
-                          ${c.id === config.id
-                            ? 'border-neutral-900 font-medium text-neutral-900'
-                            : 'border-transparent text-neutral-500 hover:text-neutral-900'}`}
-            >
-              {c.nombre}
-              {total(c.id) > 0 && (
-                <span className="ml-1.5 text-xs text-neutral-400 tabular-nums">
-                  {total(c.id).toLocaleString('es-AR')}
-                </span>
-              )}
-            </button>
-          ))}
-          <button
-            onClick={() => setAgregando(true)}
-            className="px-3 py-2 text-sm text-neutral-400 hover:text-neutral-900 transition-colors"
-            title="Agregar más estilos"
-          >
-            +
-          </button>
+    <div className={`tarjeta overflow-hidden transition-colors ${abierto ? 'border-neutral-900' : ''}`}>
+      {/* cabecera siempre visible: se toca para abrir y cerrar */}
+      <button
+        onClick={onAbrir}
+        className="flex items-center gap-3 w-full text-left p-3"
+      >
+        {config.foto ? (
+          <img src={config.foto} alt="" className="w-12 h-12 rounded object-cover shrink-0 bg-neutral-100" />
+        ) : (
+          <div className="w-12 h-12 rounded bg-neutral-100 shrink-0 flex items-center
+                          justify-center text-neutral-400 text-sm font-medium">
+            {numero}
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="font-medium truncate">{config.nombre}</div>
+          <div className="text-xs text-neutral-500 truncate">
+            {[
+              specs.length ? `${definidos}/${specs.length} detalles` : 'sin detalles',
+              medidas.length ? `${medidas.length} medidas` : null,
+              colores.length ? `${colores.length} colores` : null,
+              unidades ? `${unidades.toLocaleString('es-AR')} u.` : null,
+            ].filter(Boolean).join(' · ')}
+          </div>
         </div>
-      )}
+        <svg
+          width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+          className={`text-neutral-400 shrink-0 transition-transform ${abierto ? 'rotate-180' : ''}`}
+        >
+          <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
 
-      <div className="p-4 space-y-6">
-        {agregando && panelAlta}
-
-        {/* encabezado del estilo */}
-        <div className="flex flex-wrap gap-3 items-start">
-          <Foto
-            url={config.foto}
-            tamaño="sm"
-            carpeta="configs"
-            etiqueta="Foto"
-            onCambio={(url) => {
-              if (!url && config.foto) borrarFoto(config.foto)
-              db.actualizar('configuraciones', config.id, { foto: url })
-            }}
-          />
-          <div className="flex-1 min-w-0">
-            {varias ? (
+      {abierto && (
+        <div className="px-4 pb-4 space-y-6 border-t border-neutral-100 pt-4">
+          {/* nombre, foto y descripción del estilo */}
+          <div className="flex gap-3 items-start">
+            <Foto
+              url={config.foto}
+              tamaño="md"
+              carpeta="configs"
+              etiqueta="Foto"
+              onCambio={(url) => {
+                if (!url && config.foto) borrarFoto(config.foto)
+                db.actualizar('configuraciones', config.id, { foto: url })
+              }}
+            />
+            <div className="flex-1 min-w-0">
               <CampoTexto
                 valor={config.nombre}
                 onGuardar={(v) => db.actualizar('configuraciones', config.id, { nombre: v ?? 'Sin nombre' })}
                 className="text-base font-semibold -ml-2"
               />
-            ) : (
-              <h3 className="titulo-seccion pt-1">Medidas, colores y detalles</h3>
-            )}
-            <CampoTexto
-              valor={config.descripcion}
-              onGuardar={(v) => db.actualizar('configuraciones', config.id, { descripcion: v })}
-              placeholder={varias
-                ? 'Qué distingue a este estilo…'
-                : 'Detalle del estilo (opcional)…'}
-              className="text-sm text-neutral-600"
-            />
-          </div>
-          <div className="flex gap-1 shrink-0 w-full sm:w-auto">
-            {!varias && (
-              <button
-                onClick={() => setAgregando(true)}
-                className="btn btn-chico"
-                title="Agregar más estilos de este producto"
-              >
-                + Otro estilo
-              </button>
-            )}
-            {varias && (
-              <>
-                <button onClick={duplicar} className="btn btn-chico">Duplicar</button>
+              <CampoTexto
+                valor={config.descripcion}
+                onGuardar={(v) => db.actualizar('configuraciones', config.id, { descripcion: v })}
+                placeholder="Qué distingue a este estilo…"
+                className="text-sm text-neutral-600"
+                multilinea
+                filas={2}
+              />
+              <div className="flex gap-1.5 mt-2">
+                <button onClick={duplicar} className="btn btn-chico">Duplicar estilo</button>
                 <button
                   onClick={() => {
                     if (confirm(`¿Borrar el estilo "${config.nombre}" con todo su contenido?`)) {
@@ -164,35 +185,35 @@ export function Configuraciones({ datos }: { datos: ProductoCompleto }) {
                   }}
                   className="btn btn-chico text-neutral-500 hover:text-red-600"
                 >
-                  Borrar
+                  Borrar estilo
                 </button>
-              </>
-            )}
+              </div>
+            </div>
           </div>
+
+          <SeccionSpecs
+            productoId={producto.id}
+            configId={config.id}
+            specs={specs}
+            titulo={`Packaging y detalles de ${config.nombre}`}
+            sinCaja
+          />
+
+          <SeccionMatriz
+            producto={producto}
+            configId={config.id}
+            medidas={medidas}
+            colores={colores}
+            variantes={variantes}
+          />
+
+          <SeccionGaleria
+            productoId={producto.id}
+            configId={config.id}
+            fotos={fotos}
+          />
         </div>
-
-        <SeccionMatriz
-          producto={producto}
-          configId={config.id}
-          medidas={deConfig(datos.medidas, config.id)}
-          colores={deConfig(datos.colores, config.id)}
-          variantes={deConfig(datos.variantes, config.id)}
-        />
-
-        <SeccionSpecs
-          productoId={producto.id}
-          configId={config.id}
-          specs={deConfig(datos.specs, config.id)}
-          titulo={varias ? `Detalles de ${config.nombre}` : 'Detalles'}
-          sinCaja
-        />
-
-        <SeccionGaleria
-          productoId={producto.id}
-          configId={config.id}
-          fotos={deConfig(datos.fotos, config.id)}
-        />
-      </div>
-    </section>
+      )}
+    </div>
   )
 }
