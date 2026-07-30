@@ -150,6 +150,8 @@ function FilaSpec({ spec, productoId, configId, fotos, onAviso }: {
               onGuardar={(v) => set({ valor: v })}
               placeholder={`Describí el ${spec.nombre.toLowerCase()}…`}
               className="text-sm"
+              multilinea
+              filas={1}
             />
           </div>
 

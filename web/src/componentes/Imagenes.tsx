@@ -22,7 +22,8 @@ export function Imagenes({ productoId, configId, specId, fotos, tamaño = 'md', 
   const [ampliada, setAmpliada] = useState<string | null>(null)
   const input = useRef<HTMLInputElement>(null)
 
-  const medida = tamaño === 'sm' ? 'w-20' : 'w-28'
+  // anchos generosos: el texto de cada imagen tiene que leerse entero
+  const medida = tamaño === 'sm' ? 'w-28' : 'w-36'
 
   async function subirVarias(files: FileList | null) {
     if (!files?.length) return
@@ -82,11 +83,14 @@ export function Imagenes({ productoId, configId, specId, fotos, tamaño = 'md', 
               ×
             </button>
           </div>
+          {/* multilínea: el texto se lee entero, no cortado por el ancho */}
           <CampoTexto
             valor={f.titulo}
             onGuardar={(v) => db.actualizar('fotos', f.id, { titulo: v })}
-            placeholder="Texto…"
-            className="text-[11px] text-neutral-500 mt-0.5 px-1"
+            placeholder="Texto de esta foto…"
+            className="text-[11px] text-neutral-600 mt-0.5 px-1 leading-snug"
+            multilinea
+            filas={2}
           />
         </div>
       ))}

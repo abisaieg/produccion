@@ -32,6 +32,17 @@ export function CampoTexto({
   const enfocado = useRef(false)
   const ultimoExterno = useRef(valor ?? '')
   const timer = useRef<ReturnType<typeof setTimeout>>()
+  const area = useRef<HTMLTextAreaElement>(null)
+
+  /** el textarea crece con el contenido: nada de texto escondido */
+  const ajustarAlto = () => {
+    const el = area.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }
+
+  useEffect(ajustarAlto, [local, multilinea])
 
   useEffect(() => {
     const v = valor ?? ''
@@ -73,7 +84,12 @@ export function CampoTexto({
   }
 
   return multilinea
-    ? <textarea {...props} rows={filas} className={`${props.className} resize-y`} />
+    ? <textarea
+        {...props}
+        ref={area}
+        rows={filas}
+        className={`${props.className} resize-none overflow-hidden`}
+      />
     : <input {...props} type={tipo} inputMode={tipo === 'number' ? 'decimal' : undefined} />
 }
 
