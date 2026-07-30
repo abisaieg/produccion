@@ -5,10 +5,39 @@ import type {
   ProductoCompleto, Variante,
 } from './tipos'
 
-/** Se dispara cuando cualquier tabla cambia (propio o de otra persona). */
-function useRealtime(onCambio: () => void, canal: string) {
+/**
+ * Aviso local de "algo cambió".
+ *
+ * Cada escritura de esta misma pestaña lo dispara, así la pantalla se
+ * actualiza sí o sí. Antes esto dependía solo de Realtime y si esa conexión
+ * no enganchaba, borrabas algo y la fila seguía en pantalla.
+ */
+const oyentes = new Set<() => void>()
+
+function avisarCambio() {
+  for (const fn of oyentes) fn()
+}
+
+/** Ejecuta una escritura y avisa a las pantallas abiertas. */
+async function escribir<T>(consulta: PromiseLike<T>): Promise<T> {
+  const r = await consulta
+  avisarCambio()
+  return r
+}
+
+/** Se dispara ante un cambio propio (al instante) o de otra persona (Realtime). */
+function useCambios(onCambio: () => void, canal: string) {
   const cb = useRef(onCambio)
   cb.current = onCambio
+
+  // cambios propios
+  useEffect(() => {
+    const fn = () => cb.current()
+    oyentes.add(fn)
+    return () => { oyentes.delete(fn) }
+  }, [])
+
+  // cambios de otras personas
   useEffect(() => {
     const sub = supabase
       .channel(canal)
@@ -16,6 +45,17 @@ function useRealtime(onCambio: () => void, canal: string) {
       .subscribe()
     return () => { supabase.removeChannel(sub) }
   }, [canal])
+
+  // al volver a la pestaña, refrescar por las dudas
+  useEffect(() => {
+    const alVolver = () => { if (!document.hidden) cb.current() }
+    document.addEventListener('visibilitychange', alVolver)
+    window.addEventListener('focus', alVolver)
+    return () => {
+      document.removeEventListener('visibilitychange', alVolver)
+      window.removeEventListener('focus', alVolver)
+    }
+  }, [])
 }
 
 // ------------------------------------------------------------------ listado
@@ -35,7 +75,7 @@ export function useProductos() {
   }, [])
 
   useEffect(() => { cargar() }, [cargar])
-  useRealtime(cargar, 'lista-productos')
+  useCambios(cargar, 'lista-productos')
 
   return { productos, cargando, recargar: cargar }
 }
@@ -77,7 +117,7 @@ export function useProducto(id: string | null) {
   }, [id])
 
   useEffect(() => { setCargando(true); cargar() }, [cargar])
-  useRealtime(cargar, `ficha-${id ?? 'nada'}`)
+  useCambios(cargar, `ficha-${id ?? 'nada'}`)
 
   return { datos, cargando, recargar: cargar }
 }
@@ -120,28 +160,30 @@ export async function traerCompletos(ids: string[]): Promise<ProductoCompleto[]>
 
 export const db = {
   crearProducto: (p: Partial<Producto>) =>
-    supabase.from('productos').insert(p).select().single(),
+    escribir(supabase.from('productos').insert(p).select().single()),
   actualizarProducto: (id: string, cambios: Partial<Producto>) =>
-    supabase.from('productos').update(cambios).eq('id', id),
+    escribir(supabase.from('productos').update(cambios).eq('id', id)),
   borrarProducto: (id: string) =>
-    supabase.from('productos').delete().eq('id', id),
+    escribir(supabase.from('productos').delete().eq('id', id)),
 
   agregar: (tabla: string, fila: Record<string, unknown>) =>
-    supabase.from(tabla).insert(fila).select().single(),
+    escribir(supabase.from(tabla).insert(fila).select().single()),
+  agregarVarias: (tabla: string, filas: Record<string, unknown>[]) =>
+    escribir(supabase.from(tabla).insert(filas).select()),
   actualizar: (tabla: string, id: string, cambios: Record<string, unknown>) =>
-    supabase.from(tabla).update(cambios).eq('id', id),
+    escribir(supabase.from(tabla).update(cambios).eq('id', id)),
   borrar: (tabla: string, id: string) =>
-    supabase.from(tabla).delete().eq('id', id),
+    escribir(supabase.from(tabla).delete().eq('id', id)),
 
   /** Guarda la cantidad de una celda de la matriz (crea la fila si no existía). */
   setCantidad: (
     producto_id: string, config_id: string,
     medida_id: string, color_id: string, cantidad: number,
   ) =>
-    supabase.from('variantes').upsert(
+    escribir(supabase.from('variantes').upsert(
       { producto_id, config_id, medida_id, color_id, cantidad },
       { onConflict: 'medida_id,color_id' },
-    ),
+    )),
 }
 
 // ------------------------------------------------------------- duplicados

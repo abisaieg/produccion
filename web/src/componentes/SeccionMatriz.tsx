@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { db } from '../lib/datos'
 import type { Color, Medida, Producto, Variante } from '../lib/tipos'
-import { BotonBorrar, CampoTexto } from './ui'
+import { AltaRapida, BotonBorrar, CampoTexto } from './ui'
 
 /**
  * El corazón del pedido: cuántas unidades de cada color en cada medida.
@@ -17,6 +17,7 @@ export function SeccionMatriz({ producto, configId, medidas, colores, variantes 
   const [mostrarPrecios, setMostrarPrecios] = useState(
     medidas.some((m) => m.precio_unit != null),
   )
+  const [alta, setAlta] = useState<'medidas' | 'colores' | null>(null)
 
   const cantidad = (medidaId: string, colorId: string) =>
     variantes.find((v) => v.medida_id === medidaId && v.color_id === colorId)?.cantidad ?? 0
@@ -32,16 +33,16 @@ export function SeccionMatriz({ producto, configId, medidas, colores, variantes 
     return s + Number(m.precio_unit) * totalFila(m.id)
   }, 0)
 
-  const agregarMedida = () =>
-    db.agregar('medidas', {
+  const agregarMedidas = (nombres: string[]) =>
+    db.agregarVarias('medidas', nombres.map((nombre, i) => ({
       producto_id: producto.id, config_id: configId,
-      nombre: 'Nueva medida', orden: medidas.length,
-    })
-  const agregarColor = () =>
-    db.agregar('colores', {
+      nombre, orden: medidas.length + i,
+    })))
+  const agregarColores = (nombres: string[]) =>
+    db.agregarVarias('colores', nombres.map((nombre, i) => ({
       producto_id: producto.id, config_id: configId,
-      nombre: 'Nuevo color', orden: colores.length,
-    })
+      nombre, orden: colores.length + i,
+    })))
 
   return (
     <section>
@@ -56,20 +57,45 @@ export function SeccionMatriz({ producto, configId, medidas, colores, variantes 
               Precios
             </button>
           )}
-          <button onClick={agregarMedida} className="btn btn-chico">+ Medida</button>
-          <button onClick={agregarColor} className="btn btn-chico" disabled={!medidas.length}>
-            + Color
+          <button onClick={() => { setAlta('medidas'); }} className="btn btn-chico">+ Medidas</button>
+          <button
+            onClick={() => setAlta('colores')}
+            className="btn btn-chico"
+            disabled={!medidas.length}
+          >
+            + Colores
           </button>
         </div>
       </div>
 
+      {alta === 'medidas' && (
+        <AltaRapida
+          etiqueta="Medidas"
+          ejemplo="1 plaza, 2 plazas, King"
+          onCrear={agregarMedidas}
+          onCerrar={() => setAlta(null)}
+        />
+      )}
+      {alta === 'colores' && (
+        <AltaRapida
+          etiqueta="Colores"
+          ejemplo="Beige, Azul, Gris, Verde"
+          onCrear={agregarColores}
+          onCerrar={() => setAlta(null)}
+        />
+      )}
+
       {medidas.length === 0 ? (
-        <div className="text-center py-8">
-          <p className="text-sm text-neutral-400 mb-3">
-            Agregá las medidas del producto y después los colores.
-          </p>
-          <button onClick={agregarMedida} className="btn btn-chico">+ Agregar la primera medida</button>
-        </div>
+        alta ? null : (
+          <div className="text-center py-8">
+            <p className="text-sm text-neutral-400 mb-3">
+              Cargá las medidas y después los colores.
+            </p>
+            <button onClick={() => setAlta('medidas')} className="btn btn-chico">
+              + Cargar las medidas
+            </button>
+          </div>
+        )
       ) : (
         <div className="overflow-x-auto -mx-4 px-4">
           <table className="w-full border-collapse text-sm">

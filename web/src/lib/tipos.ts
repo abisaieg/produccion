@@ -51,11 +51,26 @@ export interface Configuracion {
   orden: number
 }
 
+/**
+ * Una opción guardada en la biblioteca para reusar: un packaging, un tipo de
+ * insert, una tela. Se carga una vez con su foto y después se elige.
+ */
+export interface Opcion {
+  id: string
+  tipo: string
+  nombre: string
+  detalle: string | null
+  foto: string | null
+  usos: number
+}
+
 export interface Especificacion {
   id: string
   producto_id: string
   /** null = detalle general del producto; con valor = detalle de esa configuración */
   config_id: string | null
+  /** de qué opción de la biblioteca salió, si salió de una */
+  opcion_id: string | null
   nombre: string
   valor: string | null
   foto: string | null

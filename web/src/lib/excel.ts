@@ -117,7 +117,7 @@ function cantidadDe(p: ProductoCompleto, medidaId: string, colorId: string) {
   return p.variantes.find((x) => x.medida_id === medidaId && x.color_id === colorId)?.cantidad ?? 0
 }
 
-/** Cuando el producto tiene una sola versión, no vale la pena nombrarla. */
+/** Cuando el producto tiene un solo estilo, no vale la pena nombrarlo. */
 function mostrarVersiones(p: ProductoCompleto) {
   return p.configs.length > 1
 }
@@ -171,7 +171,7 @@ function hojaPedido(
   const filaCab = ws.getRow(2)
   filaCab.values = [
     rotulo('Producto', 'Product', idioma),
-    rotulo('Versión', 'Version', idioma),
+    rotulo('Estilo', 'Style', idioma),
     rotulo('Código', 'Code', idioma),
     rotulo('Medida', 'Size', idioma),
     rotulo('Detalle', 'Spec', idioma),
@@ -336,7 +336,7 @@ async function hojaProducto(
   }
   ctx.fila += 1
 
-  // --- detalles generales (los que valen para todas las versiones)
+  // --- detalles generales (los que valen para todos los estilos)
   const generales = p.specs.filter((s) => !s.config_id)
   if (generales.length) {
     seccion(ctx, 'DETALLES GENERALES', 'GENERAL SPECIFICATIONS')
@@ -344,11 +344,11 @@ async function hojaProducto(
     ctx.fila += 1
   }
 
-  // --- una sección por versión
+  // --- una sección por estilo
   const varias = mostrarVersiones(p)
   for (const cfg of p.configs) {
     if (varias) {
-      seccion(ctx, `VERSIÓN: ${cfg.nombre}`, `VERSION: ${valorCorto(cfg.nombre, tr, idioma)}`,
+      seccion(ctx, `ESTILO: ${cfg.nombre}`, `STYLE: ${valorCorto(cfg.nombre, tr, idioma)}`,
         `${cfg.nombre}`)
       if (cfg.descripcion) {
         const r = ws.getRow(ctx.fila)
@@ -547,7 +547,7 @@ async function tablaMatriz(ctx: Ctx, p: ProductoCompleto, cfg: Configuracion) {
   rTot.height = 20
   ctx.fila += 2
 
-  // precios, solo si hay alguno cargado en esta versión
+  // precios, solo si hay alguno cargado en este estilo
   const conPrecio = medidas.filter((m) => m.precio_unit != null)
   if (!conPrecio.length) return
 

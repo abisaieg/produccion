@@ -2,20 +2,21 @@ import { useEffect, useState } from 'react'
 import { db, duplicarConfig } from '../lib/datos'
 import { deConfig, type ProductoCompleto } from '../lib/tipos'
 import { borrarFoto } from '../lib/fotos'
-import { CampoTexto } from './ui'
+import { AltaRapida, CampoTexto } from './ui'
 import { Foto } from './Foto'
 import { SeccionSpecs } from './SeccionSpecs'
 import { SeccionMatriz } from './SeccionMatriz'
 import { SeccionGaleria } from './SeccionGaleria'
 
 /**
- * Las versiones del producto (el acolchado a cuadros y el a rayas).
+ * Los estilos del producto (el acolchado a cuadros y el a rayas).
  * Cuando hay una sola no se muestran solapas: el concepto no molesta hasta
  * que hace falta.
  */
 export function Configuraciones({ datos }: { datos: ProductoCompleto }) {
   const { producto, configs } = datos
   const [activa, setActiva] = useState<string | null>(configs[0]?.id ?? null)
+  const [agregando, setAgregando] = useState(false)
 
   // si borran la configuración abierta, saltar a la primera que quede
   useEffect(() => {
@@ -28,13 +29,12 @@ export function Configuraciones({ datos }: { datos: ProductoCompleto }) {
   const total = (cid: string) =>
     datos.variantes.filter((v) => v.config_id === cid).reduce((s, v) => s + v.cantidad, 0)
 
-  const agregar = async () => {
-    const { data } = await db.agregar('configuraciones', {
-      producto_id: producto.id,
-      nombre: `Versión ${configs.length + 1}`,
-      orden: configs.length,
-    })
-    if (data) setActiva(data.id as string)
+  const agregarVarias = async (nombres: string[]) => {
+    const { data } = await db.agregarVarias('configuraciones', nombres.map((nombre, i) => ({
+      producto_id: producto.id, nombre, orden: configs.length + i,
+    })))
+    const creadas = (data ?? []) as { id: string }[]
+    if (creadas.length) setActiva(creadas[0].id)
   }
 
   const duplicar = async () => {
@@ -50,20 +50,35 @@ export function Configuraciones({ datos }: { datos: ProductoCompleto }) {
     if (nueva) setActiva(nueva)
   }
 
+  const varias = configs.length > 1
+
+  const panelAlta = (
+    <AltaRapida
+      etiqueta="Estilos"
+      ejemplo="A cuadros, A rayas, Liso, Estampado"
+      onCrear={agregarVarias}
+      onCerrar={() => setAgregando(false)}
+    />
+  )
+
   if (!config) {
     return (
-      <section className="tarjeta p-4 text-center">
-        <p className="text-sm text-neutral-400 mb-3">Este producto no tiene ninguna versión.</p>
-        <button onClick={agregar} className="btn btn-chico">+ Agregar una versión</button>
+      <section className="tarjeta p-4">
+        {agregando ? panelAlta : (
+          <div className="text-center">
+            <p className="text-sm text-neutral-400 mb-3">Este producto no tiene ningún estilo.</p>
+            <button onClick={() => setAgregando(true)} className="btn btn-chico">
+              + Agregar estilos
+            </button>
+          </div>
+        )}
       </section>
     )
   }
 
-  const varias = configs.length > 1
-
   return (
     <section className="tarjeta overflow-hidden">
-      {/* solapas: solo cuando hay más de una versión */}
+      {/* solapas: solo cuando hay más de un estilo */}
       {varias && (
         <div className="flex gap-1 px-2 pt-2 border-b border-neutral-200 overflow-x-auto">
           {configs.map((c) => (
@@ -85,9 +100,9 @@ export function Configuraciones({ datos }: { datos: ProductoCompleto }) {
             </button>
           ))}
           <button
-            onClick={agregar}
+            onClick={() => setAgregando(true)}
             className="px-3 py-2 text-sm text-neutral-400 hover:text-neutral-900 transition-colors"
-            title="Agregar otra versión"
+            title="Agregar más estilos"
           >
             +
           </button>
@@ -95,7 +110,9 @@ export function Configuraciones({ datos }: { datos: ProductoCompleto }) {
       )}
 
       <div className="p-4 space-y-6">
-        {/* encabezado de la versión */}
+        {agregando && panelAlta}
+
+        {/* encabezado del estilo */}
         <div className="flex flex-wrap gap-3 items-start">
           <Foto
             url={config.foto}
@@ -121,15 +138,19 @@ export function Configuraciones({ datos }: { datos: ProductoCompleto }) {
               valor={config.descripcion}
               onGuardar={(v) => db.actualizar('configuraciones', config.id, { descripcion: v })}
               placeholder={varias
-                ? 'Qué distingue a esta versión…'
-                : 'Detalle de la versión (opcional)…'}
+                ? 'Qué distingue a este estilo…'
+                : 'Detalle del estilo (opcional)…'}
               className="text-sm text-neutral-600"
             />
           </div>
           <div className="flex gap-1 shrink-0 w-full sm:w-auto">
             {!varias && (
-              <button onClick={agregar} className="btn btn-chico" title="Agregar otra versión del producto">
-                + Otra versión
+              <button
+                onClick={() => setAgregando(true)}
+                className="btn btn-chico"
+                title="Agregar más estilos de este producto"
+              >
+                + Otro estilo
               </button>
             )}
             {varias && (
@@ -137,7 +158,7 @@ export function Configuraciones({ datos }: { datos: ProductoCompleto }) {
                 <button onClick={duplicar} className="btn btn-chico">Duplicar</button>
                 <button
                   onClick={() => {
-                    if (confirm(`¿Borrar la versión "${config.nombre}" con todo su contenido?`)) {
+                    if (confirm(`¿Borrar el estilo "${config.nombre}" con todo su contenido?`)) {
                       db.borrar('configuraciones', config.id)
                     }
                   }}

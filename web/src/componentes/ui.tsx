@@ -78,38 +78,23 @@ export function CampoTexto({
 }
 
 /**
- * Botón de borrar. Siempre visible: si se escondiera hasta pasar el mouse
- * por encima, en el celular no habría forma de borrar nada.
+ * Botón de borrar. Siempre visible (si se escondiera hasta pasar el mouse
+ * por encima, en el celular no habría forma de borrar nada) y de un solo
+ * click. Solo pregunta cuando borrar hace perder trabajo de verdad —pasar
+ * `confirmar`—, porque el paso extra en cada ítem chico era pura fricción.
  */
-export function BotonBorrar({ onBorrar, titulo = 'Borrar', className = '' }: {
+export function BotonBorrar({ onBorrar, titulo = 'Borrar', className = '', confirmar }: {
   onBorrar: () => void
   titulo?: string
   className?: string
+  /** Texto de la pregunta. Si no se pasa, borra directo. */
+  confirmar?: string
 }) {
-  const [confirmando, setConfirmando] = useState(false)
-
-  useEffect(() => {
-    if (!confirmando) return
-    const t = setTimeout(() => setConfirmando(false), 5000)
-    return () => clearTimeout(t)
-  }, [confirmando])
-
-  if (confirmando) {
-    return (
-      <button
-        onClick={() => { onBorrar(); setConfirmando(false) }}
-        className="text-xs px-2.5 py-1.5 rounded bg-red-600 text-white font-medium
-                   hover:bg-red-700 shrink-0 whitespace-nowrap"
-      >
-        Borrar
-      </button>
-    )
-  }
   return (
     <button
-      onClick={() => setConfirmando(true)}
+      onClick={() => { if (!confirmar || window.confirm(confirmar)) onBorrar() }}
       title={titulo}
-      className={`text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded
+      className={`text-neutral-400 hover:text-white hover:bg-red-600 rounded
                   transition-colors p-2 shrink-0 ${className}`}
       aria-label={titulo}
     >
@@ -183,6 +168,69 @@ export function Aviso({ mensaje, onCerrar }: { mensaje: string; onCerrar: () => 
     <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-neutral-900 text-white
                     text-sm px-4 py-2.5 rounded-lg shadow-lg max-w-[90vw] text-center">
       {mensaje}
+    </div>
+  )
+}
+
+/**
+ * Alta de varios de una: "1 plaza, 2 plazas, King" crea las tres.
+ * Cargar de a uno con un botón cada vez era lentísimo.
+ */
+export function AltaRapida({ etiqueta, ejemplo, onCrear, onCerrar }: {
+  etiqueta: string
+  ejemplo: string
+  onCrear: (nombres: string[]) => void | Promise<unknown>
+  onCerrar: () => void
+}) {
+  const [texto, setTexto] = useState('')
+  const [guardando, setGuardando] = useState(false)
+
+  const nombres = texto
+    .split(/[,\n]/)
+    .map((t) => t.trim())
+    .filter(Boolean)
+
+  const crear = async () => {
+    if (!nombres.length) return
+    setGuardando(true)
+    await onCrear(nombres)
+    setGuardando(false)
+    onCerrar()
+  }
+
+  return (
+    <div className="p-3 bg-neutral-50 border border-neutral-200 rounded mb-3">
+      <label className="text-xs text-neutral-500 block mb-1">
+        {etiqueta} — separados por coma
+      </label>
+      <div className="flex flex-col sm:flex-row gap-2">
+        <input
+          autoFocus
+          value={texto}
+          onChange={(e) => setTexto(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); crear() }
+            if (e.key === 'Escape') onCerrar()
+          }}
+          placeholder={ejemplo}
+          className="campo-caja text-sm flex-1"
+        />
+        <div className="flex gap-2">
+          <button onClick={onCerrar} className="btn flex-1 sm:flex-none">Cancelar</button>
+          <button
+            onClick={crear}
+            disabled={!nombres.length || guardando}
+            className="btn btn-negro flex-1 sm:flex-none whitespace-nowrap"
+          >
+            {guardando ? 'Creando…' : `Agregar ${nombres.length || ''}`.trim()}
+          </button>
+        </div>
+      </div>
+      {nombres.length > 1 && (
+        <p className="text-xs text-neutral-500 mt-1.5">
+          Se van a crear: {nombres.join(' · ')}
+        </p>
+      )}
     </div>
   )
 }

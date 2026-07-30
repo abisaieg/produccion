@@ -3,6 +3,7 @@
 import { supabase } from './lib/supabase'
 import { db, duplicarConfig, duplicarProducto, traerCompletos } from './lib/datos'
 import { deConfig } from './lib/tipos'
+import { comoDetalle, crearOpcion } from './lib/biblioteca'
 
 let fallos = 0
 function chequear(ok: boolean, texto: string, detalle = '') {
@@ -40,22 +41,61 @@ await db.actualizar('especificaciones', specGeneral.id, {
 const spec2 = d.specs.find((s) => s.id === specGeneral.id)!
 chequear(spec2.valor === 'Bolsa de PVC con cierre' && spec2.definido, 'editar y marcar como definido')
 
-// --------------------------------------------------- medidas, colores, matriz
-const { data: m1 } = await db.agregar('medidas', { producto_id: pid, config_id: cfg1, nombre: '2 plazas', precio_unit: 12.5, orden: 0 })
-const { data: m2 } = await db.agregar('medidas', { producto_id: pid, config_id: cfg1, nombre: 'King', precio_unit: 15, orden: 1 })
-const { data: c1 } = await db.agregar('colores', { producto_id: pid, config_id: cfg1, nombre: 'Beige', orden: 0 })
-const { data: c2 } = await db.agregar('colores', { producto_id: pid, config_id: cfg1, nombre: 'Azul', orden: 1 })
+// -------------------------------------------- biblioteca de opciones
+// el caso real: 4 estilos que comparten el mismo packaging
+const pack = await crearOpcion({
+  tipo: 'Packaging', nombre: 'Bolsa PVC con cierre',
+  detalle: 'logo impreso 2 colores', foto: null,
+})
+chequear(!!pack, 'cargar un packaging en la biblioteca')
 
-await db.setCantidad(pid, cfg1, m1!.id, c1!.id, 100)
-await db.setCantidad(pid, cfg1, m1!.id, c2!.id, 50)
-await db.setCantidad(pid, cfg1, m2!.id, c1!.id, 30)
+const { opciones: bib } = await (async () => {
+  const { data } = await supabase.from('opciones').select('*').eq('tipo', 'Packaging')
+  return { opciones: (data ?? []) as typeof pack[] }
+})()
+chequear(bib.length >= 1, 'la biblioteca lo devuelve para reusar')
+
+// elegirlo en el detalle copia nombre, valor y foto
+const { data: specPack } = await db.agregar('especificaciones', {
+  producto_id: pid, config_id: cfg1, nombre: 'Packaging', orden: 1,
+})
+await db.actualizar('especificaciones', specPack!.id, { ...comoDetalle(pack!), definido: true })
+;[d] = await traerCompletos([pid])
+const elegido = d.specs.find((s) => s.id === specPack!.id)!
+chequear(elegido.opcion_id === pack!.id, 'el detalle recuerda de qué opción salió')
+chequear(elegido.valor === 'Bolsa PVC con cierre — logo impreso 2 colores',
+  'copia el nombre y el detalle de la opción', elegido.valor ?? '')
+
+const { data: opRecontada } = await supabase.from('opciones').select('usos').eq('id', pack!.id).single()
+chequear((opRecontada as { usos: number }).usos >= 1, 'cuenta los usos para ordenar por lo más elegido')
+
+// --------------------------------------------------- medidas, colores, matriz
+// alta de varias de una sola vez, como el "1 plaza, 2 plazas, King" de la pantalla
+const { data: medidasNuevas } = await db.agregarVarias('medidas', [
+  { producto_id: pid, config_id: cfg1, nombre: '2 plazas', precio_unit: 12.5, orden: 0 },
+  { producto_id: pid, config_id: cfg1, nombre: 'King', precio_unit: 15, orden: 1 },
+])
+const { data: coloresNuevos } = await db.agregarVarias('colores', [
+  { producto_id: pid, config_id: cfg1, nombre: 'Beige', orden: 0 },
+  { producto_id: pid, config_id: cfg1, nombre: 'Azul', orden: 1 },
+])
+chequear((medidasNuevas ?? []).length === 2 && (coloresNuevos ?? []).length === 2,
+  'cargar varias medidas y colores de una sola vez')
+const m1 = (medidasNuevas as { id: string }[])[0]
+const m2 = (medidasNuevas as { id: string }[])[1]
+const c1 = (coloresNuevos as { id: string }[])[0]
+const c2 = (coloresNuevos as { id: string }[])[1]
+
+await db.setCantidad(pid, cfg1, m1.id, c1.id, 100)
+await db.setCantidad(pid, cfg1, m1.id, c2.id, 50)
+await db.setCantidad(pid, cfg1, m2.id, c1.id, 30)
 // pisar una cantidad, como cuando corregís el número
-await db.setCantidad(pid, cfg1, m1!.id, c1!.id, 450)
+await db.setCantidad(pid, cfg1, m1.id, c1.id, 450)
 
 ;[d] = await traerCompletos([pid])
 const cant = (mid: string, cid: string) =>
   d.variantes.find((v) => v.medida_id === mid && v.color_id === cid)?.cantidad ?? 0
-chequear(cant(m1!.id, c1!.id) === 450, 'corregir una cantidad la pisa, no duplica')
+chequear(cant(m1.id, c1.id) === 450, 'corregir una cantidad la pisa, no duplica')
 chequear(d.variantes.length === 3, 'quedan 3 celdas cargadas', `hay ${d.variantes.length}`)
 const total = d.variantes.reduce((s, v) => s + v.cantidad, 0)
 chequear(total === 530, 'total de unidades', `${total}`)
@@ -93,16 +133,16 @@ if (copiaId) {
 }
 
 // -------------------------------------------------------- borrar cosas
-await db.borrar('colores', c2!.id)
+await db.borrar('colores', c2.id)
 ;[d] = await traerCompletos([pid])
-chequear(!d.colores.some((c) => c.id === c2!.id), 'borrar un color')
-chequear(!d.variantes.some((v) => v.color_id === c2!.id), 'al borrar el color se van sus cantidades')
+chequear(!d.colores.some((c) => c.id === c2.id), 'borrar un color')
+chequear(!d.variantes.some((v) => v.color_id === c2.id), 'al borrar el color se van sus cantidades')
 
-await db.borrar('medidas', m2!.id)
+await db.borrar('medidas', m2.id)
 await db.borrar('especificaciones', specGeneral.id)
 await db.borrar('configuraciones', cfgB!.id)
 ;[d] = await traerCompletos([pid])
-chequear(!d.medidas.some((m) => m.id === m2!.id), 'borrar una medida')
+chequear(!d.medidas.some((m) => m.id === m2.id), 'borrar una medida')
 chequear(!d.specs.some((s) => s.id === specGeneral.id), 'borrar un detalle')
 chequear(d.configs.length === 2, 'borrar una versión entera')
 chequear(!d.medidas.some((m) => m.config_id === cfgB!.id), 'la versión borrada se lleva sus medidas')
@@ -128,6 +168,8 @@ chequear(quedan.length === 0, 'borrar el producto')
 
 const { data: hijos } = await supabase.from('medidas').select('id').eq('producto_id', pid)
 chequear((hijos ?? []).length === 0, 'borrar el producto se lleva todo lo suyo')
+
+if (pack) await db.borrar('opciones', pack.id)
 
 console.log(fallos === 0 ? '\nTODO BIEN' : `\n${fallos} FALLAS`)
 if (fallos > 0) throw new Error(`${fallos} verificaciones fallaron`)
