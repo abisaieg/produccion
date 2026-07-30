@@ -7,8 +7,9 @@ import { BotonBorrar, CampoTexto } from './ui'
  * El corazón del pedido: cuántas unidades de cada color en cada medida.
  * Filas = medidas, columnas = colores, celdas = cantidad.
  */
-export function SeccionMatriz({ producto, medidas, colores, variantes }: {
+export function SeccionMatriz({ producto, configId, medidas, colores, variantes }: {
   producto: Producto
+  configId: string
   medidas: Medida[]
   colores: Color[]
   variantes: Variante[]
@@ -33,15 +34,17 @@ export function SeccionMatriz({ producto, medidas, colores, variantes }: {
 
   const agregarMedida = () =>
     db.agregar('medidas', {
-      producto_id: producto.id, nombre: 'Nueva medida', orden: medidas.length,
+      producto_id: producto.id, config_id: configId,
+      nombre: 'Nueva medida', orden: medidas.length,
     })
   const agregarColor = () =>
     db.agregar('colores', {
-      producto_id: producto.id, nombre: 'Nuevo color', orden: colores.length,
+      producto_id: producto.id, config_id: configId,
+      nombre: 'Nuevo color', orden: colores.length,
     })
 
   return (
-    <section className="tarjeta p-4">
+    <section>
       <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
         <h3 className="titulo-seccion">Medidas y colores</h3>
         <div className="flex gap-1.5">
@@ -128,6 +131,7 @@ export function SeccionMatriz({ producto, medidas, colores, variantes }: {
                     <td key={c.id} className="px-0.5">
                       <Celda
                         productoId={producto.id}
+                        configId={configId}
                         medidaId={m.id}
                         colorId={c.id}
                         valor={cantidad(m.id, c.id)}
@@ -224,8 +228,9 @@ function EncabezadoColor({ color }: { color: Color }) {
 // ------------------------------------------------------------------ celda
 
 /** Input de cantidad: guarda al salir o al frenar de tipear. */
-function Celda({ productoId, medidaId, colorId, valor }: {
+function Celda({ productoId, configId, medidaId, colorId, valor }: {
   productoId: string
+  configId: string
   medidaId: string
   colorId: string
   valor: number
@@ -241,7 +246,7 @@ function Celda({ productoId, medidaId, colorId, valor }: {
   const guardar = (v: string) => {
     const n = v === '' ? 0 : Math.max(0, Math.round(Number(v)))
     if (Number.isNaN(n) || n === valor) return
-    db.setCantidad(productoId, medidaId, colorId, n)
+    db.setCantidad(productoId, configId, medidaId, colorId, n)
   }
 
   return (

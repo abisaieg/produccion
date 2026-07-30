@@ -4,9 +4,8 @@ import { borrarFoto } from '../lib/fotos'
 import { CampoTexto, Cargando } from './ui'
 import { Foto } from './Foto'
 import { SeccionSpecs } from './SeccionSpecs'
-import { SeccionMatriz } from './SeccionMatriz'
-import { SeccionGaleria } from './SeccionGaleria'
 import { SeccionNotas } from './SeccionNotas'
+import { Configuraciones } from './Configuraciones'
 
 export function Ficha({ id, onVolver, onExportar, onDuplicado }: {
   id: string
@@ -26,7 +25,8 @@ export function Ficha({ id, onVolver, onExportar, onDuplicado }: {
     )
   }
 
-  const { producto: p, specs, fotos, medidas, colores, variantes, notas } = datos
+  const { producto: p, specs, notas } = datos
+  const specsGenerales = specs.filter((s) => !s.config_id)
   const set = (cambios: Record<string, unknown>) => db.actualizarProducto(p.id, cambios)
 
   return (
@@ -141,9 +141,12 @@ export function Ficha({ id, onVolver, onExportar, onDuplicado }: {
           />
         </section>
 
-        <SeccionSpecs productoId={p.id} specs={specs} />
-        <SeccionMatriz producto={p} medidas={medidas} colores={colores} variantes={variantes} />
-        <SeccionGaleria productoId={p.id} fotos={fotos} />
+        <SeccionSpecs
+          productoId={p.id}
+          specs={specsGenerales}
+          titulo="Detalles generales"
+        />
+        <Configuraciones datos={datos} />
         <SeccionNotas productoId={p.id} notas={notas} />
 
         {/* pie */}

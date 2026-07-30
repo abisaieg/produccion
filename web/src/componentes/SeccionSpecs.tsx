@@ -10,15 +10,20 @@ import { Foto } from './Foto'
  * Cada uno con su valor y su foto de ejemplo, y un tilde para marcar
  * lo que ya quedó definido con la fábrica.
  */
-export function SeccionSpecs({ productoId, specs }: {
+export function SeccionSpecs({ productoId, configId = null, specs, titulo, sinCaja = false }: {
   productoId: string
+  /** null = detalles generales del producto; con valor = detalles de esa configuración */
+  configId?: string | null
   specs: Especificacion[]
+  titulo?: string
+  sinCaja?: boolean
 }) {
   const [agregando, setAgregando] = useState(false)
 
   const agregar = async (nombre: string) => {
     await db.agregar('especificaciones', {
       producto_id: productoId,
+      config_id: configId,
       nombre,
       orden: specs.length,
     })
@@ -31,10 +36,10 @@ export function SeccionSpecs({ productoId, specs }: {
   const definidas = specs.filter((s) => s.definido).length
 
   return (
-    <section className="tarjeta p-4">
+    <section className={sinCaja ? '' : 'tarjeta p-4'}>
       <div className="flex items-center justify-between mb-3">
         <h3 className="titulo-seccion">
-          Detalles del producto
+          {titulo ?? 'Detalles del producto'}
           {specs.length > 0 && (
             <span className="ml-2 font-normal normal-case tracking-normal text-neutral-400">
               {definidas} de {specs.length} definidos

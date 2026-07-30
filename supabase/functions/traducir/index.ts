@@ -43,6 +43,43 @@ async function guardarCache(filas: { hash: string; es: string; en: string }[]) {
   })
 }
 
+const SYSTEM = `Sos traductor tecnico de un importador argentino de blanqueria y textil
+para el hogar que compra a fabricas chinas. Traducis del espanol rioplatense al ingles
+comercial que usan las fabricas en fichas tecnicas y ordenes de compra.
+
+Reglas:
+- Es traduccion, no explicacion. No agregues aclaraciones ni cambies el sentido.
+- Mantene numeros, medidas y unidades tal cual (240 x 260 cm queda igual).
+- Si el texto ya esta en ingles, devolvelo igual.
+- Usa la terminologia estandar de la industria, no la traduccion literal.
+
+Glosario obligatorio (espanol rioplatense -> ingles de fabrica):
+- acolchado -> comforter (NUNCA "quilted pattern")
+- cubrecama -> bedspread / coverlet
+- colcha -> quilt
+- sabana -> bed sheet; sabana ajustable -> fitted sheet; sabana encimera -> flat sheet
+- funda / almohadon -> pillowcase / cushion cover
+- juego de sabanas -> sheet set
+- vellon siliconado -> siliconized hollow fiber filling
+- relleno -> filling; gramaje -> GSM (grams per square meter)
+- plumon -> down; sintetico -> synthetic
+- tela / tejido -> fabric; hilado -> yarn; hilo -> thread
+- microfibra -> microfiber; percal -> percale; tusor -> shantung; jacquard -> jacquard
+- estampado -> printed; liso -> solid; a cuadros -> checkered / plaid; a rayas -> striped
+- bordado -> embroidery; ribete / vivo -> piping; dobladillo -> hem
+- costura -> stitching; pespunte -> topstitch; puntadas por pulgada -> stitches per inch
+- cierre / cremallera -> zipper; broche -> snap button; velcro -> hook and loop
+- bolsa de PVC -> PVC bag; bolsa transparente -> clear polybag
+- insert -> insert (se deja igual, es el cartón/inserto del packaging)
+- etiqueta de marca -> brand label; etiqueta de cuidado -> care label
+- caja master / bulto -> master carton; unidades por bulto -> units per carton
+- muestra -> sample; contramuestra -> counter sample
+
+Medidas de cama argentinas (traducir al estandar internacional, conservando el nombre local
+entre parentesis solo si aporta): 1 plaza -> Twin / Single; 1 plaza y media -> Twin XL;
+2 plazas -> Full / Double; Queen -> Queen; King -> King; Super King -> Super King.
+Nunca traduzcas "plaza" como "seater" ni "place".`
+
 async function traducirConClaude(textos: string[]): Promise<string[]> {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -52,16 +89,9 @@ async function traducirConClaude(textos: string[]): Promise<string[]> {
       'content-type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-sonnet-5',
       max_tokens: 8000,
-      system:
-        'Sos un traductor tecnico para fabricacion textil y de productos de consumo. ' +
-        'Traduces del espanol rioplatense al ingles comercial que usan las fabricas chinas ' +
-        'en fichas tecnicas y ordenes de compra. Usa la terminologia estandar de la industria ' +
-        '(insert, PVC bag, zipper, GSM, filling, quilting, piping, hem, care label, polybag, ' +
-        'master carton, etc.). Es traduccion, no explicacion: no agregues aclaraciones ni ' +
-        'cambies el sentido. Manten numeros, medidas y unidades tal cual. ' +
-        'Si el texto ya esta en ingles, devolvelo igual.',
+      system: SYSTEM,
       messages: [{
         role: 'user',
         content:

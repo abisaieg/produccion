@@ -38,9 +38,24 @@ export interface Producto {
   updated_at: string
 }
 
+/**
+ * Una versión del producto: el mismo acolchado a cuadros y a rayas.
+ * Cada una lleva sus propias medidas, colores, cantidades, precios y fotos.
+ */
+export interface Configuracion {
+  id: string
+  producto_id: string
+  nombre: string
+  descripcion: string | null
+  foto: string | null
+  orden: number
+}
+
 export interface Especificacion {
   id: string
   producto_id: string
+  /** null = detalle general del producto; con valor = detalle de esa configuración */
+  config_id: string | null
   nombre: string
   valor: string | null
   foto: string | null
@@ -51,6 +66,7 @@ export interface Especificacion {
 export interface Foto {
   id: string
   producto_id: string
+  config_id: string | null
   url: string
   titulo: string | null
   orden: number
@@ -59,6 +75,7 @@ export interface Foto {
 export interface Medida {
   id: string
   producto_id: string
+  config_id: string | null
   nombre: string
   detalle: string | null
   precio_unit: number | null
@@ -68,6 +85,7 @@ export interface Medida {
 export interface Color {
   id: string
   producto_id: string
+  config_id: string | null
   nombre: string
   hex: string | null
   foto: string | null
@@ -77,6 +95,7 @@ export interface Color {
 export interface Variante {
   id: string
   producto_id: string
+  config_id: string | null
   medida_id: string
   color_id: string
   cantidad: number
@@ -94,12 +113,21 @@ export interface Nota {
 
 export interface ProductoCompleto {
   producto: Producto
+  configs: Configuracion[]
   specs: Especificacion[]
   fotos: Foto[]
   medidas: Medida[]
   colores: Color[]
   variantes: Variante[]
   notas: Nota[]
+}
+
+/** Filtra los hijos que pertenecen a una configuración. */
+export function deConfig<T extends { config_id: string | null }>(
+  lista: T[],
+  configId: string,
+): T[] {
+  return lista.filter((x) => x.config_id === configId)
 }
 
 // Especificaciones que se sugieren al crear un producto nuevo.

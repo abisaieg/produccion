@@ -1,5 +1,5 @@
 import type ExcelJS from 'exceljs'
-import type { ProductoCompleto } from './tipos'
+import type { Configuracion, ProductoCompleto } from './tipos'
 import { estadoInfo, ESTADO_EN } from './tipos'
 import { traducir, type Idioma, type Traducciones } from './traducir'
 
@@ -51,7 +51,7 @@ function valor(
   }
 }
 
-/** Versión en una sola línea, para celdas angostas de la hoja PEDIDO. */
+/** Versión en una sola línea, para celdas angostas. */
 function valorCorto(
   texto: string | null | undefined,
   tr: Traducciones,
@@ -70,6 +70,7 @@ function textosDe(productos: ProductoCompleto[]): string[] {
   const out: (string | null)[] = []
   for (const p of productos) {
     out.push(p.producto.nombre, p.producto.descripcion, p.producto.categoria)
+    for (const c of p.configs) out.push(c.nombre, c.descripcion)
     for (const s of p.specs) out.push(s.nombre, s.valor)
     for (const m of p.medidas) out.push(m.nombre, m.detalle)
     for (const c of p.colores) out.push(c.nombre)
@@ -81,6 +82,10 @@ function textosDe(productos: ProductoCompleto[]): string[] {
 }
 
 // ----------------------------------------------------------------- helpers
+
+/** Hijos que cuelgan de una configuración. */
+const de = <T extends { config_id: string | null }>(lista: T[], cid: string) =>
+  lista.filter((x) => x.config_id === cid)
 
 async function bajarImagen(url: string) {
   try {
@@ -110,6 +115,11 @@ function precioDe(p: ProductoCompleto, medidaId: string, colorId: string): numbe
 
 function cantidadDe(p: ProductoCompleto, medidaId: string, colorId: string) {
   return p.variantes.find((x) => x.medida_id === medidaId && x.color_id === colorId)?.cantidad ?? 0
+}
+
+/** Cuando el producto tiene una sola versión, no vale la pena nombrarla. */
+function mostrarVersiones(p: ProductoCompleto) {
+  return p.configs.length > 1
 }
 
 // ---------------------------------------------------------------------------
@@ -148,19 +158,20 @@ function hojaPedido(
 ) {
   const ws = wb.addWorksheet('PEDIDO', { views: [{ state: 'frozen', ySplit: 2 }] })
   ws.columns = [
-    { width: 30 }, { width: 14 }, { width: 20 }, { width: 22 },
-    { width: 20 }, { width: 12 }, { width: 14 }, { width: 14 },
+    { width: 28 }, { width: 20 }, { width: 13 }, { width: 18 },
+    { width: 20 }, { width: 18 }, { width: 11 }, { width: 13 }, { width: 13 },
   ]
 
   const titulo = ws.getCell('A1')
   titulo.value = rotulo('PEDIDO', 'PURCHASE ORDER', idioma)
   titulo.font = { bold: true, size: 14, color: { argb: NEGRO } }
-  ws.mergeCells('A1:H1')
+  ws.mergeCells('A1:I1')
   ws.getRow(1).height = 26
 
   const filaCab = ws.getRow(2)
   filaCab.values = [
     rotulo('Producto', 'Product', idioma),
+    rotulo('Versión', 'Version', idioma),
     rotulo('Código', 'Code', idioma),
     rotulo('Medida', 'Size', idioma),
     rotulo('Detalle', 'Spec', idioma),
@@ -184,56 +195,66 @@ function hojaPedido(
 
   for (const p of productos) {
     const inicio = fila
-    for (const m of p.medidas) {
-      for (const c of p.colores) {
-        const cant = cantidadDe(p, m.id, c.id)
-        if (cant <= 0) continue
-        const precio = precioDe(p, m.id, c.id)
-        if (precio != null) hayPrecios = true
+    const conVersiones = mostrarVersiones(p)
 
-        const r = ws.getRow(fila)
-        r.values = [
-          valorCorto(p.producto.nombre, tr, idioma),
-          p.producto.codigo ?? '',
-          valorCorto(m.nombre, tr, idioma),
-          valorCorto(m.detalle, tr, idioma),
-          valorCorto(c.nombre, tr, idioma),
-          cant,
-          precio ?? '',
-          precio != null ? precio * cant : '',
-        ]
-        r.eachCell((cel, i) => {
-          cel.border = borde
-          cel.alignment = i >= 6
-            ? { horizontal: 'right', vertical: 'middle' }
-            : { vertical: 'middle', wrapText: true }
-        })
-        r.getCell(6).numFmt = '#,##0'
-        r.getCell(7).numFmt = '#,##0.0000'
-        r.getCell(8).numFmt = '#,##0.00'
+    for (const cfg of p.configs) {
+      for (const m of de(p.medidas, cfg.id)) {
+        for (const c of de(p.colores, cfg.id)) {
+          const cant = cantidadDe(p, m.id, c.id)
+          if (cant <= 0) continue
+          const precio = precioDe(p, m.id, c.id)
+          if (precio != null) hayPrecios = true
 
-        totalUnidades += cant
-        if (precio != null) totalMonto += precio * cant
-        fila++
+          const r = ws.getRow(fila)
+          r.values = [
+            valorCorto(p.producto.nombre, tr, idioma),
+            conVersiones ? valorCorto(cfg.nombre, tr, idioma) : '',
+            p.producto.codigo ?? '',
+            valorCorto(m.nombre, tr, idioma),
+            valorCorto(m.detalle, tr, idioma),
+            valorCorto(c.nombre, tr, idioma),
+            cant,
+            precio ?? '',
+            precio != null ? precio * cant : '',
+          ]
+          r.eachCell((cel, i) => {
+            cel.border = borde
+            cel.alignment = i >= 7
+              ? { horizontal: 'right', vertical: 'middle' }
+              : { vertical: 'middle', wrapText: true }
+          })
+          r.getCell(7).numFmt = '#,##0'
+          r.getCell(8).numFmt = '#,##0.0000'
+          r.getCell(9).numFmt = '#,##0.00'
+
+          totalUnidades += cant
+          if (precio != null) totalMonto += precio * cant
+          fila++
+        }
       }
     }
+
+    // el producto todavía no tiene cantidades: igual queda anotado
     if (fila === inicio) {
       const r = ws.getRow(fila)
-      r.values = [valorCorto(p.producto.nombre, tr, idioma), p.producto.codigo ?? '', '—', '', '', 0, '', '']
+      r.values = [
+        valorCorto(p.producto.nombre, tr, idioma), '', p.producto.codigo ?? '',
+        '—', '', '', 0, '', '',
+      ]
       r.eachCell((cel) => { cel.border = borde })
       fila++
     }
   }
 
   const rTotal = ws.getRow(fila + 1)
-  rTotal.getCell(5).value = 'TOTAL'
-  rTotal.getCell(6).value = totalUnidades
-  rTotal.getCell(6).numFmt = '#,##0'
+  rTotal.getCell(6).value = 'TOTAL'
+  rTotal.getCell(7).value = totalUnidades
+  rTotal.getCell(7).numFmt = '#,##0'
   if (hayPrecios) {
-    rTotal.getCell(8).value = totalMonto
-    rTotal.getCell(8).numFmt = '#,##0.00'
+    rTotal.getCell(9).value = totalMonto
+    rTotal.getCell(9).numFmt = '#,##0.00'
   }
-  for (const i of [5, 6, 7, 8]) {
+  for (const i of [6, 7, 8, 9]) {
     const c = rTotal.getCell(i)
     c.font = { bold: true, size: 11 }
     c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GRIS } }
@@ -245,11 +266,7 @@ function hojaPedido(
   if (hayPrecios) {
     const moneda = productos[0]?.producto.moneda ?? 'USD'
     const nota = ws.getCell(`A${fila + 3}`)
-    nota.value = rotulo(
-      `Precios expresados en ${moneda}`,
-      `Prices in ${moneda}`,
-      idioma,
-    )
+    nota.value = rotulo(`Precios expresados en ${moneda}`, `Prices in ${moneda}`, idioma)
     nota.font = { italic: true, size: 9, color: { argb: TENUE } }
   }
 }
@@ -269,26 +286,16 @@ async function hojaProducto(
     { width: 16 }, { width: 16 }, { width: 16 }, { width: 16 },
   ]
 
-  let fila = 1
-  const seccion = (es: string, en: string) => {
-    const r = ws.getRow(fila)
-    r.getCell(1).value = rotulo(es, en, idioma)
-    r.getCell(1).font = { bold: true, size: 11, color: { argb: 'FFFFFFFF' } }
-    for (let i = 1; i <= 8; i++) {
-      r.getCell(i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NEGRO } }
-    }
-    r.height = 20
-    fila += 1
-  }
+  const ctx = { ws, wb, tr, idioma, conFotos, fila: 1 }
 
-  // --- encabezado
-  const rTit = ws.getRow(fila)
+  // --- encabezado del producto
+  const rTit = ws.getRow(ctx.fila)
   rTit.getCell(1).value = valor(p.producto.nombre, tr, idioma)
   rTit.getCell(1).font = { bold: true, size: 16, color: { argb: NEGRO } }
   rTit.getCell(1).alignment = { vertical: 'middle', wrapText: true }
   rTit.height = idioma === 'ambos' ? 40 : 30
-  ws.mergeCells(fila, 1, fila, 5)
-  fila += 1
+  ws.mergeCells(ctx.fila, 1, ctx.fila, 5)
+  ctx.fila += 1
 
   const est = p.producto.estado
   const datos: [string, string, ExcelJS.CellValue][] = [
@@ -299,25 +306,25 @@ async function hojaProducto(
     ['Moneda', 'Currency', p.producto.moneda],
   ]
   for (const [es, en, v] of datos) {
-    const r = ws.getRow(fila)
+    const r = ws.getRow(ctx.fila)
     r.getCell(1).value = rotulo(es, en, idioma)
     r.getCell(1).font = { bold: true, size: 10, color: { argb: TENUE } }
     r.getCell(2).value = v
     r.getCell(2).font = { size: 10 }
     r.getCell(2).alignment = { vertical: 'middle', wrapText: true }
-    fila += 1
+    ctx.fila += 1
   }
 
   if (p.producto.descripcion) {
-    const r = ws.getRow(fila)
+    const r = ws.getRow(ctx.fila)
     r.getCell(1).value = rotulo('Descripción', 'Description', idioma)
     r.getCell(1).font = { bold: true, size: 10, color: { argb: TENUE } }
     r.getCell(2).value = valor(p.producto.descripcion, tr, idioma)
     r.getCell(2).alignment = { wrapText: true, vertical: 'top' }
-    ws.mergeCells(fila, 2, fila, 5)
+    ws.mergeCells(ctx.fila, 2, ctx.fila, 5)
     const largo = p.producto.descripcion.length * (idioma === 'ambos' ? 2 : 1)
     r.height = Math.min(110, 18 + largo / 3)
-    fila += 1
+    ctx.fila += 1
   }
 
   if (conFotos && p.producto.foto) {
@@ -327,216 +334,295 @@ async function hojaProducto(
       ws.addImage(id, { tl: { col: 5.2, row: 0.2 }, ext: { width: 190, height: 190 } })
     }
   }
-  fila += 1
+  ctx.fila += 1
 
-  // --- especificaciones
-  if (p.specs.length) {
-    seccion('ESPECIFICACIONES', 'SPECIFICATIONS')
-    const cab = ws.getRow(fila)
-    cab.values = [
-      rotulo('Detalle', 'Item', idioma),
-      rotulo('Valor', 'Value', idioma),
-      conFotos ? rotulo('Referencia', 'Reference', idioma) : '',
-    ]
-    cab.eachCell((c) => {
-      c.font = { bold: true, size: 10 }
-      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GRIS } }
-      c.border = borde
-    })
-    fila += 1
+  // --- detalles generales (los que valen para todas las versiones)
+  const generales = p.specs.filter((s) => !s.config_id)
+  if (generales.length) {
+    seccion(ctx, 'DETALLES GENERALES', 'GENERAL SPECIFICATIONS')
+    await tablaSpecs(ctx, generales)
+    ctx.fila += 1
+  }
 
-    for (const s of p.specs) {
-      const r = ws.getRow(fila)
-      r.getCell(1).value = valor(s.nombre, tr, idioma)
-      r.getCell(1).font = { bold: true, size: 10 }
-      r.getCell(1).alignment = { vertical: 'middle', wrapText: true }
-      r.getCell(1).border = borde
-      r.getCell(2).value = valor(s.valor, tr, idioma)
-      r.getCell(2).alignment = { vertical: 'middle', wrapText: true }
-      r.getCell(2).border = borde
-      r.getCell(3).border = borde
-
-      let alto = idioma === 'ambos' ? 34 : 24
-      if (conFotos && s.foto) {
-        const img = await bajarImagen(s.foto)
+  // --- una sección por versión
+  const varias = mostrarVersiones(p)
+  for (const cfg of p.configs) {
+    if (varias) {
+      seccion(ctx, `VERSIÓN: ${cfg.nombre}`, `VERSION: ${valorCorto(cfg.nombre, tr, idioma)}`,
+        `${cfg.nombre}`)
+      if (cfg.descripcion) {
+        const r = ws.getRow(ctx.fila)
+        r.getCell(1).value = valor(cfg.descripcion, tr, idioma)
+        r.getCell(1).alignment = { wrapText: true, vertical: 'top' }
+        r.getCell(1).font = { italic: true, size: 10, color: { argb: TENUE } }
+        ws.mergeCells(ctx.fila, 1, ctx.fila, 5)
+        r.height = idioma === 'ambos' ? 32 : 18
+        ctx.fila += 1
+      }
+      if (conFotos && cfg.foto) {
+        const img = await bajarImagen(cfg.foto)
         if (img) {
           const id = wb.addImage(img)
           ws.addImage(id, {
-            tl: { col: 2.1, row: fila - 1 + 0.1 },
-            ext: { width: 96, height: 96 },
+            tl: { col: 5.2, row: ctx.fila - 1 + 0.1 },
+            ext: { width: 150, height: 150 },
           })
-          alto = 78
         }
       }
-      const largo = (s.valor?.length ?? 0) * (idioma === 'ambos' ? 2 : 1)
-      r.height = Math.max(alto, Math.min(110, 18 + largo / 2.5))
-      fila += 1
     }
-    fila += 1
+
+    const specsCfg = de(p.specs, cfg.id)
+    if (specsCfg.length) {
+      if (!varias) seccion(ctx, 'DETALLES', 'SPECIFICATIONS')
+      await tablaSpecs(ctx, specsCfg)
+      ctx.fila += 1
+    }
+
+    await tablaMatriz(ctx, p, cfg)
+    await galeria(ctx, de(p.fotos, cfg.id))
+    ctx.fila += 1
   }
 
-  // --- matriz medidas x colores
-  if (p.medidas.length && p.colores.length) {
-    seccion('CANTIDADES POR MEDIDA Y COLOR', 'QUANTITIES BY SIZE AND COLOR')
-
-    const cab = ws.getRow(fila)
-    cab.getCell(1).value = rotulo('Medida', 'Size', idioma)
-    p.colores.forEach((c, i) => { cab.getCell(2 + i).value = valorCorto(c.nombre, tr, idioma) })
-    cab.getCell(2 + p.colores.length).value = 'Total'
-    cab.height = 26
-    for (let i = 1; i <= p.colores.length + 2; i++) {
-      const c = cab.getCell(i)
-      c.font = { bold: true, size: 10, color: { argb: 'FFFFFFFF' } }
-      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF3F3F46' } }
-      c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
-      c.border = borde
-    }
-    fila += 1
-
-    const totalPorColor = new Array(p.colores.length).fill(0)
-    let totalGeneral = 0
-
-    for (const m of p.medidas) {
-      const r = ws.getRow(fila)
-      const nombreMedida = m.detalle
-        ? `${valorCorto(m.nombre, tr, idioma)} — ${valorCorto(m.detalle, tr, idioma)}`
-        : valorCorto(m.nombre, tr, idioma)
-      r.getCell(1).value = nombreMedida
-      r.getCell(1).font = { bold: true, size: 10 }
-      r.getCell(1).alignment = { vertical: 'middle', wrapText: true }
-      r.getCell(1).border = borde
-
-      let totalFila = 0
-      p.colores.forEach((c, i) => {
-        const cant = cantidadDe(p, m.id, c.id)
-        const cel = r.getCell(2 + i)
-        cel.value = cant || ''
-        cel.numFmt = '#,##0'
-        cel.alignment = { horizontal: 'center', vertical: 'middle' }
-        cel.border = borde
-        totalFila += cant
-        totalPorColor[i] += cant
-      })
-
-      const celTotal = r.getCell(2 + p.colores.length)
-      celTotal.value = totalFila
-      celTotal.numFmt = '#,##0'
-      celTotal.font = { bold: true }
-      celTotal.alignment = { horizontal: 'center', vertical: 'middle' }
-      celTotal.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GRIS } }
-      celTotal.border = borde
-      totalGeneral += totalFila
-      r.height = 22
-      fila += 1
-    }
-
-    const rTot = ws.getRow(fila)
-    rTot.getCell(1).value = 'Total'
-    totalPorColor.forEach((t, i) => {
-      const c = rTot.getCell(2 + i)
-      c.value = t
-      c.numFmt = '#,##0'
-    })
-    rTot.getCell(2 + p.colores.length).value = totalGeneral
-    rTot.getCell(2 + p.colores.length).numFmt = '#,##0'
-    for (let i = 1; i <= p.colores.length + 2; i++) {
-      const c = rTot.getCell(i)
-      c.font = { bold: true, size: 10 }
-      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GRIS } }
-      c.border = borde
-      if (i > 1) c.alignment = { horizontal: 'center', vertical: 'middle' }
-    }
-    rTot.height = 20
-    fila += 2
-
-    const conPrecio = p.medidas.filter((m) => m.precio_unit != null)
-    if (conPrecio.length) {
-      seccion(`PRECIOS (${p.producto.moneda})`, `PRICES (${p.producto.moneda})`)
-      const cab2 = ws.getRow(fila)
-      cab2.values = [
-        rotulo('Medida', 'Size', idioma),
-        rotulo('Precio unitario', 'Unit price', idioma),
-        rotulo('Cantidad', 'Qty', idioma),
-        rotulo('Subtotal', 'Subtotal', idioma),
-      ]
-      cab2.eachCell((c) => {
-        c.font = { bold: true, size: 10 }
-        c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GRIS } }
-        c.border = borde
-      })
-      fila += 1
-
-      let acumulado = 0
-      for (const m of conPrecio) {
-        const cant = p.colores.reduce((s, c) => s + cantidadDe(p, m.id, c.id), 0)
-        const sub = Number(m.precio_unit) * cant
-        acumulado += sub
-        const r = ws.getRow(fila)
-        r.values = [valorCorto(m.nombre, tr, idioma), Number(m.precio_unit), cant, sub]
-        r.getCell(2).numFmt = '#,##0.0000'
-        r.getCell(3).numFmt = '#,##0'
-        r.getCell(4).numFmt = '#,##0.00'
-        r.eachCell((c) => { c.border = borde })
-        fila += 1
-      }
-      const rFin = ws.getRow(fila)
-      rFin.getCell(3).value = 'TOTAL'
-      rFin.getCell(4).value = acumulado
-      rFin.getCell(4).numFmt = '#,##0.00'
-      rFin.getCell(3).font = { bold: true }
-      rFin.getCell(4).font = { bold: true }
-      fila += 2
-    }
-  }
-
-  // --- galería de fotos de ejemplo
-  if (conFotos && p.fotos.length) {
-    seccion('FOTOS DE REFERENCIA', 'REFERENCE PHOTOS')
-    const filaBase = fila
-    let col = 0
-    for (const f of p.fotos) {
-      const img = await bajarImagen(f.url)
-      if (!img) continue
-      const id = wb.addImage(img)
-      const filaImg = filaBase + Math.floor(col / 4) * 10
-      ws.addImage(id, {
-        tl: { col: (col % 4) * 2 + 0.1, row: filaImg - 1 + 0.1 },
-        ext: { width: 175, height: 175 },
-      })
-      if (f.titulo) {
-        const rt = ws.getRow(filaImg + 8)
-        const cel = rt.getCell((col % 4) * 2 + 1)
-        cel.value = valor(f.titulo, tr, idioma)
-        cel.font = { size: 9, color: { argb: TENUE } }
-        cel.alignment = { wrapText: true, vertical: 'top' }
-        rt.height = idioma === 'ambos' ? 28 : 16
-      }
-      col += 1
-    }
-    const filasUsadas = Math.ceil(col / 4) * 10
-    for (let i = 0; i < filasUsadas; i++) {
-      const r = ws.getRow(filaBase + i)
-      if (!r.height) r.height = 20
-    }
-    fila = filaBase + filasUsadas + 1
-  }
-
-  // --- notas
+  // --- notas del producto
   if (p.notas.length) {
-    seccion('NOTAS', 'NOTES')
+    seccion(ctx, 'NOTAS', 'NOTES')
     for (const n of p.notas) {
-      const r = ws.getRow(fila)
+      const r = ws.getRow(ctx.fila)
       r.getCell(1).value = new Date(n.created_at).toLocaleDateString('es-AR')
       r.getCell(1).font = { size: 9, color: { argb: TENUE } }
       r.getCell(1).alignment = { vertical: 'top' }
       r.getCell(2).value = valor(n.texto, tr, idioma)
       r.getCell(2).alignment = { wrapText: true, vertical: 'top' }
-      ws.mergeCells(fila, 2, fila, 6)
+      ws.mergeCells(ctx.fila, 2, ctx.fila, 6)
       const largo = n.texto.length * (idioma === 'ambos' ? 2 : 1)
       r.height = Math.min(90, 18 + largo / 5)
-      fila += 1
+      ctx.fila += 1
     }
   }
+}
+
+// ------------------------------------------------------- bloques reusables
+
+interface Ctx {
+  ws: ExcelJS.Worksheet
+  wb: ExcelJS.Workbook
+  tr: Traducciones
+  idioma: Idioma
+  conFotos: boolean
+  fila: number
+}
+
+function seccion(ctx: Ctx, es: string, en: string, soloTexto?: string) {
+  const r = ctx.ws.getRow(ctx.fila)
+  r.getCell(1).value = soloTexto && ctx.idioma === 'es' ? es : rotulo(es, en, ctx.idioma)
+  r.getCell(1).font = { bold: true, size: 11, color: { argb: 'FFFFFFFF' } }
+  for (let i = 1; i <= 8; i++) {
+    r.getCell(i).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NEGRO } }
+  }
+  r.height = 20
+  ctx.fila += 1
+}
+
+async function tablaSpecs(
+  ctx: Ctx,
+  specs: { nombre: string; valor: string | null; foto: string | null }[],
+) {
+  const { ws, wb, tr, idioma, conFotos } = ctx
+  const cab = ws.getRow(ctx.fila)
+  cab.values = [
+    rotulo('Detalle', 'Item', idioma),
+    rotulo('Valor', 'Value', idioma),
+    conFotos ? rotulo('Referencia', 'Reference', idioma) : '',
+  ]
+  cab.eachCell((c) => {
+    c.font = { bold: true, size: 10 }
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GRIS } }
+    c.border = borde
+  })
+  ctx.fila += 1
+
+  for (const s of specs) {
+    const r = ws.getRow(ctx.fila)
+    r.getCell(1).value = valor(s.nombre, tr, idioma)
+    r.getCell(1).font = { bold: true, size: 10 }
+    r.getCell(1).alignment = { vertical: 'middle', wrapText: true }
+    r.getCell(1).border = borde
+    r.getCell(2).value = valor(s.valor, tr, idioma)
+    r.getCell(2).alignment = { vertical: 'middle', wrapText: true }
+    r.getCell(2).border = borde
+    r.getCell(3).border = borde
+
+    let alto = idioma === 'ambos' ? 34 : 24
+    if (conFotos && s.foto) {
+      const img = await bajarImagen(s.foto)
+      if (img) {
+        const id = wb.addImage(img)
+        ws.addImage(id, {
+          tl: { col: 2.1, row: ctx.fila - 1 + 0.1 },
+          ext: { width: 96, height: 96 },
+        })
+        alto = 78
+      }
+    }
+    const largo = (s.valor?.length ?? 0) * (idioma === 'ambos' ? 2 : 1)
+    r.height = Math.max(alto, Math.min(110, 18 + largo / 2.5))
+    ctx.fila += 1
+  }
+}
+
+async function tablaMatriz(ctx: Ctx, p: ProductoCompleto, cfg: Configuracion) {
+  const { ws, tr, idioma } = ctx
+  const medidas = de(p.medidas, cfg.id)
+  const colores = de(p.colores, cfg.id)
+  if (!medidas.length || !colores.length) return
+
+  seccion(ctx, 'CANTIDADES POR MEDIDA Y COLOR', 'QUANTITIES BY SIZE AND COLOR')
+
+  const cab = ws.getRow(ctx.fila)
+  cab.getCell(1).value = rotulo('Medida', 'Size', idioma)
+  colores.forEach((c, i) => { cab.getCell(2 + i).value = valorCorto(c.nombre, tr, idioma) })
+  cab.getCell(2 + colores.length).value = 'Total'
+  cab.height = 26
+  for (let i = 1; i <= colores.length + 2; i++) {
+    const c = cab.getCell(i)
+    c.font = { bold: true, size: 10, color: { argb: 'FFFFFFFF' } }
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF3F3F46' } }
+    c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
+    c.border = borde
+  }
+  ctx.fila += 1
+
+  const totalPorColor = new Array(colores.length).fill(0)
+  let totalGeneral = 0
+
+  for (const m of medidas) {
+    const r = ws.getRow(ctx.fila)
+    r.getCell(1).value = m.detalle
+      ? `${valorCorto(m.nombre, tr, idioma)} — ${valorCorto(m.detalle, tr, idioma)}`
+      : valorCorto(m.nombre, tr, idioma)
+    r.getCell(1).font = { bold: true, size: 10 }
+    r.getCell(1).alignment = { vertical: 'middle', wrapText: true }
+    r.getCell(1).border = borde
+
+    let totalFila = 0
+    colores.forEach((c, i) => {
+      const cant = cantidadDe(p, m.id, c.id)
+      const cel = r.getCell(2 + i)
+      cel.value = cant || ''
+      cel.numFmt = '#,##0'
+      cel.alignment = { horizontal: 'center', vertical: 'middle' }
+      cel.border = borde
+      totalFila += cant
+      totalPorColor[i] += cant
+    })
+
+    const celTotal = r.getCell(2 + colores.length)
+    celTotal.value = totalFila
+    celTotal.numFmt = '#,##0'
+    celTotal.font = { bold: true }
+    celTotal.alignment = { horizontal: 'center', vertical: 'middle' }
+    celTotal.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GRIS } }
+    celTotal.border = borde
+    totalGeneral += totalFila
+    r.height = 22
+    ctx.fila += 1
+  }
+
+  const rTot = ws.getRow(ctx.fila)
+  rTot.getCell(1).value = 'Total'
+  totalPorColor.forEach((t, i) => {
+    const c = rTot.getCell(2 + i)
+    c.value = t
+    c.numFmt = '#,##0'
+  })
+  rTot.getCell(2 + colores.length).value = totalGeneral
+  rTot.getCell(2 + colores.length).numFmt = '#,##0'
+  for (let i = 1; i <= colores.length + 2; i++) {
+    const c = rTot.getCell(i)
+    c.font = { bold: true, size: 10 }
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GRIS } }
+    c.border = borde
+    if (i > 1) c.alignment = { horizontal: 'center', vertical: 'middle' }
+  }
+  rTot.height = 20
+  ctx.fila += 2
+
+  // precios, solo si hay alguno cargado en esta versión
+  const conPrecio = medidas.filter((m) => m.precio_unit != null)
+  if (!conPrecio.length) return
+
+  seccion(ctx, `PRECIOS (${p.producto.moneda})`, `PRICES (${p.producto.moneda})`)
+  const cab2 = ws.getRow(ctx.fila)
+  cab2.values = [
+    rotulo('Medida', 'Size', idioma),
+    rotulo('Precio unitario', 'Unit price', idioma),
+    rotulo('Cantidad', 'Qty', idioma),
+    rotulo('Subtotal', 'Subtotal', idioma),
+  ]
+  cab2.eachCell((c) => {
+    c.font = { bold: true, size: 10 }
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GRIS } }
+    c.border = borde
+  })
+  ctx.fila += 1
+
+  let acumulado = 0
+  for (const m of conPrecio) {
+    const cant = colores.reduce((s, c) => s + cantidadDe(p, m.id, c.id), 0)
+    const sub = Number(m.precio_unit) * cant
+    acumulado += sub
+    const r = ws.getRow(ctx.fila)
+    r.values = [valorCorto(m.nombre, tr, idioma), Number(m.precio_unit), cant, sub]
+    r.getCell(2).numFmt = '#,##0.0000'
+    r.getCell(3).numFmt = '#,##0'
+    r.getCell(4).numFmt = '#,##0.00'
+    r.eachCell((c) => { c.border = borde })
+    ctx.fila += 1
+  }
+  const rFin = ws.getRow(ctx.fila)
+  rFin.getCell(3).value = 'TOTAL'
+  rFin.getCell(4).value = acumulado
+  rFin.getCell(4).numFmt = '#,##0.00'
+  rFin.getCell(3).font = { bold: true }
+  rFin.getCell(4).font = { bold: true }
+  ctx.fila += 2
+}
+
+async function galeria(
+  ctx: Ctx,
+  fotos: { url: string; titulo: string | null }[],
+) {
+  if (!ctx.conFotos || !fotos.length) return
+  const { ws, wb, tr, idioma } = ctx
+  seccion(ctx, 'FOTOS DE REFERENCIA', 'REFERENCE PHOTOS')
+
+  const filaBase = ctx.fila
+  let col = 0
+  for (const f of fotos) {
+    const img = await bajarImagen(f.url)
+    if (!img) continue
+    const id = wb.addImage(img)
+    const filaImg = filaBase + Math.floor(col / 4) * 10
+    ws.addImage(id, {
+      tl: { col: (col % 4) * 2 + 0.1, row: filaImg - 1 + 0.1 },
+      ext: { width: 175, height: 175 },
+    })
+    if (f.titulo) {
+      const rt = ws.getRow(filaImg + 8)
+      const cel = rt.getCell((col % 4) * 2 + 1)
+      cel.value = valor(f.titulo, tr, idioma)
+      cel.font = { size: 9, color: { argb: TENUE } }
+      cel.alignment = { wrapText: true, vertical: 'top' }
+      rt.height = idioma === 'ambos' ? 28 : 16
+    }
+    col += 1
+  }
+  const filasUsadas = Math.ceil(col / 4) * 10
+  for (let i = 0; i < filasUsadas; i++) {
+    const r = ws.getRow(filaBase + i)
+    if (!r.height) r.height = 20
+  }
+  ctx.fila = filaBase + filasUsadas + 1
 }
 
 // --------------------------------------------------------------- descarga

@@ -5,8 +5,9 @@ import { borrarFoto, subirFoto } from '../lib/fotos'
 import { CampoTexto } from './ui'
 
 /** Fotos de ejemplo del producto: referencias, muestras, lo que mandó la fábrica. */
-export function SeccionGaleria({ productoId, fotos }: {
+export function SeccionGaleria({ productoId, configId, fotos }: {
   productoId: string
+  configId: string
   fotos: TFoto[]
 }) {
   const [subiendo, setSubiendo] = useState(0)
@@ -21,7 +22,9 @@ export function SeccionGaleria({ productoId, fotos }: {
     for (const f of lista) {
       try {
         const url = await subirFoto(f, 'galeria')
-        await db.agregar('fotos', { producto_id: productoId, url, orden: orden++ })
+        await db.agregar('fotos', {
+          producto_id: productoId, config_id: configId, url, orden: orden++,
+        })
       } catch {
         // si una falla seguimos con las demás
       }
@@ -30,7 +33,7 @@ export function SeccionGaleria({ productoId, fotos }: {
   }
 
   return (
-    <section className="tarjeta p-4">
+    <section>
       <div className="flex items-center justify-between mb-3">
         <h3 className="titulo-seccion">
           Fotos de ejemplo
