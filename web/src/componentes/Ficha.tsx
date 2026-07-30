@@ -14,9 +14,27 @@ export function Ficha({ id, onVolver, onExportar, onDuplicado, onAviso }: {
   onDuplicado: (nuevoId: string) => void
   onAviso: (mensaje: string) => void
 }) {
-  const { datos, cargando } = useProducto(id)
+  const { datos, cargando, falla, recargar } = useProducto(id)
 
   if (cargando) return <Cargando />
+
+  // no se pudieron traer los datos: el producto sigue estando, así que
+  // nunca decimos que se borró
+  if (falla) {
+    return (
+      <div className="p-8 text-center">
+        <p className="text-neutral-700 mb-1">No se pudieron cargar los datos.</p>
+        <p className="text-sm text-neutral-500 mb-4">
+          Puede ser la conexión o que haya caducado el acceso. Tu producto está a salvo.
+        </p>
+        <div className="flex gap-2 justify-center">
+          <button onClick={() => recargar()} className="btn btn-negro">Reintentar</button>
+          <button onClick={onVolver} className="btn">Volver</button>
+        </div>
+      </div>
+    )
+  }
+
   if (!datos) {
     return (
       <div className="p-8 text-center">

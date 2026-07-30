@@ -18,9 +18,35 @@ function avisarCambio() {
   for (const fn of oyentes) fn()
 }
 
+/**
+ * ¿El error es porque la sesión dejó de valer?
+ *
+ * Pasa, por ejemplo, si se cambia la contraseña del usuario: el navegador
+ * sigue teniendo una sesión guardada pero el servidor ya la rechaza. Sin
+ * esto, las consultas volvían vacías y la app decía "este producto ya no
+ * existe" cuando el producto estaba perfecto.
+ */
+function esSesionVencida(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const e = error as { code?: string; message?: string; status?: number }
+  if (e.status === 401 || e.status === 403) return true
+  if (e.code === 'PGRST301' || e.code === '401') return true
+  const m = (e.message ?? '').toLowerCase()
+  return m.includes('jwt') || m.includes('token') || m.includes('not authenticated')
+}
+
+/** Si la sesión venció, cerrarla para que la app vuelva a pedir el PIN. */
+async function revisarSesion(error: unknown) {
+  if (!esSesionVencida(error)) return false
+  await supabase.auth.signOut()
+  return true
+}
+
 /** Ejecuta una escritura y avisa a las pantallas abiertas. */
 async function escribir<T>(consulta: PromiseLike<T>): Promise<T> {
   const r = await consulta
+  const err = (r as { error?: unknown })?.error
+  if (err) await revisarSesion(err)
   avisarCambio()
   return r
 }
@@ -89,6 +115,8 @@ const TABLAS = [
 export function useProducto(id: string | null) {
   const [datos, setDatos] = useState<ProductoCompleto | null>(null)
   const [cargando, setCargando] = useState(true)
+  /** hubo un problema al traer los datos: NO es que el producto no exista */
+  const [falla, setFalla] = useState(false)
 
   const cargar = useCallback(async () => {
     if (!id) { setDatos(null); setCargando(false); return }
@@ -102,7 +130,16 @@ export function useProducto(id: string | null) {
       supabase.from('variantes').select('*').eq('producto_id', id),
       supabase.from('notas').select('*').eq('producto_id', id).order('created_at', { ascending: false }),
     ])
-    if (!p.data) { setDatos(null); setCargando(false); return }
+    if (p.error) {
+      // la consulta falló: puede ser la sesión o la conexión, pero el
+      // producto sigue estando. No lo damos por borrado.
+      await revisarSesion(p.error)
+      setFalla(true)
+      setCargando(false)
+      return
+    }
+    if (!p.data) { setDatos(null); setFalla(false); setCargando(false); return }
+    setFalla(false)
     setDatos({
       producto: p.data as Producto,
       configs: (configs.data ?? []) as Configuracion[],
@@ -119,7 +156,7 @@ export function useProducto(id: string | null) {
   useEffect(() => { setCargando(true); cargar() }, [cargar])
   useCambios(cargar, `ficha-${id ?? 'nada'}`)
 
-  return { datos, cargando, recargar: cargar }
+  return { datos, cargando, falla, recargar: cargar }
 }
 
 // ------------------------------------------------------------------- carga

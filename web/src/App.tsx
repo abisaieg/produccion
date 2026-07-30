@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { haySesion } from './lib/auth'
+import { supabase } from './lib/supabase'
 import { Pin } from './componentes/Pin'
 import { Lista } from './componentes/Lista'
 import { Ficha } from './componentes/Ficha'
@@ -13,6 +14,16 @@ export default function App() {
   const [aviso, setAviso] = useState<string | null>(null)
 
   useEffect(() => { haySesion().then(setAutenticado) }, [])
+
+  // si la sesión deja de valer (por ejemplo, al cambiar la contraseña),
+  // volvemos a la pantalla del PIN en vez de mostrar datos vacíos
+  useEffect(() => {
+    const { data } = supabase.auth.onAuthStateChange((evento, sesion) => {
+      if (evento === 'SIGNED_OUT' || !sesion) setAutenticado(false)
+      if (evento === 'SIGNED_IN') setAutenticado(true)
+    })
+    return () => data.subscription.unsubscribe()
+  }, [])
 
   // el producto abierto vive en el hash, así el botón "atrás" del celular funciona
   useEffect(() => {
