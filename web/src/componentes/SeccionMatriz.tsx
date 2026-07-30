@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { db } from '../lib/datos'
 import type { Color, Medida, Producto, Variante } from '../lib/tipos'
 import { AltaRapida, BotonBorrar, CampoTexto } from './ui'
+import { Foto } from './Foto'
+import { borrarFoto } from '../lib/fotos'
 
 /**
  * El corazón del pedido: cuántas unidades de cada color en cada medida.
@@ -111,7 +113,7 @@ export function SeccionMatriz({ producto, configId, medidas, colores, variantes 
                   </th>
                 )}
                 {colores.map((c) => (
-                  <th key={c.id} className="pb-2 px-1 min-w-[84px]">
+                  <th key={c.id} className="pb-2 px-1 min-w-[92px] align-bottom">
                     <EncabezadoColor color={c} />
                   </th>
                 ))}
@@ -222,32 +224,50 @@ export function SeccionMatriz({ producto, configId, medidas, colores, variantes 
 
 // ------------------------------------------------------------- encabezado
 
-/** Muestra de color, nombre y cruz para quitarlo, todo en una línea. */
+/**
+ * Encabezado de la columna: foto de la tela o estampa, muestra de color,
+ * nombre y cruz para quitarlo. La foto es lo que mejor entiende la fábrica.
+ */
 function EncabezadoColor({ color }: { color: Color }) {
   return (
-    <div className="flex items-center gap-0.5 w-full">
-      <input
-        type="color"
-        value={color.hex ?? '#cccccc'}
-        onChange={(e) => db.actualizar('colores', color.id, { hex: e.target.value })}
-        className="w-4 h-4 shrink-0 rounded-full border border-neutral-300 cursor-pointer
-                   appearance-none p-0 overflow-hidden"
-        style={{ backgroundColor: color.hex ?? '#cccccc' }}
-        title="Color de referencia"
+    <div className="flex flex-col items-center gap-1 w-full">
+      <Foto
+        url={color.foto}
+        tamaño="sm"
+        carpeta="colores"
+        etiqueta="Foto"
+        onCambio={(url) => {
+          if (!url && color.foto) borrarFoto(color.foto)
+          db.actualizar('colores', color.id, { foto: url })
+        }}
       />
-      <CampoTexto
-        valor={color.nombre}
-        onGuardar={(v) => db.actualizar('colores', color.id, { nombre: v ?? 'Sin nombre' })}
-        className="text-xs font-medium px-1 flex-1 min-w-0"
-      />
-      <button
-        onClick={() => db.borrar('colores', color.id)}
-        title="Quitar color"
-        className="text-neutral-300 hover:text-red-600 transition-colors shrink-0
-                   text-sm leading-none px-1"
-      >
-        ×
-      </button>
+      <div className="flex items-center gap-0.5 w-full">
+        <input
+          type="color"
+          value={color.hex ?? '#cccccc'}
+          onChange={(e) => db.actualizar('colores', color.id, { hex: e.target.value })}
+          className="w-4 h-4 shrink-0 rounded-full border border-neutral-300 cursor-pointer
+                     appearance-none p-0 overflow-hidden"
+          style={{ backgroundColor: color.hex ?? '#cccccc' }}
+          title="Color de referencia"
+        />
+        <CampoTexto
+          valor={color.nombre}
+          onGuardar={(v) => db.actualizar('colores', color.id, { nombre: v ?? 'Sin nombre' })}
+          className="text-xs font-medium px-1 flex-1 min-w-0"
+        />
+        <button
+          onClick={() => {
+            if (color.foto) borrarFoto(color.foto)
+            db.borrar('colores', color.id)
+          }}
+          title="Quitar color"
+          className="text-neutral-300 hover:text-red-600 transition-colors shrink-0
+                     text-sm leading-none px-1"
+        >
+          ×
+        </button>
+      </div>
     </div>
   )
 }

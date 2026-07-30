@@ -8,7 +8,8 @@
     "build": "tsc --noEmit -p tsconfig.json && vite build",
     "preview": "vite preview",
     "prueba": "vite-node src/prueba-flujo.ts",
-    "deploy": "npm run build && gh-pages -d dist"
+    "deploy": "npm run build && gh-pages -d dist",
+    "prueba-fotos": "vite-node src/prueba-fotos.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

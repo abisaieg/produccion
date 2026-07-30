@@ -471,12 +471,30 @@ async function tablaSpecs(
 }
 
 async function tablaMatriz(ctx: Ctx, p: ProductoCompleto, cfg: Configuracion) {
-  const { ws, tr, idioma } = ctx
+  const { ws, wb, tr, idioma } = ctx
   const medidas = de(p.medidas, cfg.id)
   const colores = de(p.colores, cfg.id)
   if (!medidas.length || !colores.length) return
 
   seccion(ctx, 'CANTIDADES POR MEDIDA Y COLOR', 'QUANTITIES BY SIZE AND COLOR')
+
+  // fila de muestras: la foto de cada color arriba de su columna
+  if (ctx.conFotos && colores.some((c) => c.foto)) {
+    const rMuestras = ws.getRow(ctx.fila)
+    rMuestras.height = 56
+    for (let i = 0; i < colores.length; i++) {
+      const foto = colores[i].foto
+      if (!foto) continue
+      const img = await bajarImagen(foto)
+      if (!img) continue
+      const id = wb.addImage(img)
+      ws.addImage(id, {
+        tl: { col: 1 + i + 0.1, row: ctx.fila - 1 + 0.05 },
+        ext: { width: 66, height: 66 },
+      })
+    }
+    ctx.fila += 1
+  }
 
   const cab = ws.getRow(ctx.fila)
   cab.getCell(1).value = rotulo('Medida', 'Size', idioma)
