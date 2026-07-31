@@ -132,6 +132,17 @@ function cantidadDe(p: ProductoCompleto, medidaId: string, colorId: string) {
   return p.variantes.find((x) => x.medida_id === medidaId && x.color_id === colorId)?.cantidad ?? 0
 }
 
+function pctDe(p: ProductoCompleto, medidaId: string, colorId: string): number | null {
+  const v = p.variantes.find((x) => x.medida_id === medidaId && x.color_id === colorId)
+  return v?.porcentaje != null ? Number(v.porcentaje) : null
+}
+
+/** El pedido se armó por porcentajes, así que se muestran junto a las unidades. */
+function hayPorcentajes(p: ProductoCompleto) {
+  return p.variantes.some((v) => v.porcentaje != null) ||
+    p.medidas.some((m) => m.porcentaje != null)
+}
+
 /** Cuando el producto tiene un solo estilo, no vale la pena nombrarlo. */
 function mostrarVersiones(p: ProductoCompleto) {
   return p.configs.length > 1
@@ -176,13 +187,14 @@ function hojaPedido(
   const ws = wb.addWorksheet('PEDIDO', { views: [{ state: 'frozen', ySplit: 2 }] })
   ws.columns = [
     { width: 28 }, { width: 20 }, { width: 13 }, { width: 18 },
-    { width: 20 }, { width: 18 }, { width: 11 }, { width: 13 }, { width: 13 },
+    { width: 20 }, { width: 18 }, { width: 11 }, { width: 10 },
+    { width: 13 }, { width: 13 },
   ]
 
   const titulo = ws.getCell('A1')
   titulo.value = rotulo('PEDIDO', 'PURCHASE ORDER', idioma)
   titulo.font = { bold: true, size: 14, color: { argb: NEGRO } }
-  ws.mergeCells('A1:I1')
+  ws.mergeCells('A1:J1')
   ws.getRow(1).height = 26
 
   const filaCab = ws.getRow(2)
@@ -194,6 +206,7 @@ function hojaPedido(
     rotulo('Detalle', 'Spec', idioma),
     rotulo('Color', 'Color', idioma),
     rotulo('Cantidad', 'Qty', idioma),
+    rotulo('% cont.', '% of cont.', idioma),
     rotulo('Precio U.', 'Unit price', idioma),
     rotulo('Subtotal', 'Subtotal', idioma),
   ]
@@ -231,6 +244,7 @@ function hojaPedido(
             valorCorto(m.detalle, tr, idioma),
             valorCorto(c.nombre, tr, idioma),
             cant,
+            pctDe(p, m.id, c.id) ?? '',
             precio ?? '',
             precio != null ? precio * cant : '',
           ]
@@ -241,8 +255,9 @@ function hojaPedido(
               : { vertical: 'middle', wrapText: true }
           })
           r.getCell(7).numFmt = '#,##0'
-          r.getCell(8).numFmt = '#,##0.0000'
-          r.getCell(9).numFmt = '#,##0.00'
+          r.getCell(8).numFmt = '0.00"%"'
+          r.getCell(9).numFmt = '#,##0.0000'
+          r.getCell(10).numFmt = '#,##0.00'
 
           totalUnidades += cant
           if (precio != null) totalMonto += precio * cant
@@ -256,7 +271,7 @@ function hojaPedido(
       const r = ws.getRow(fila)
       r.values = [
         valorCorto(p.producto.nombre, tr, idioma), '', p.producto.codigo ?? '',
-        '—', '', '', 0, '', '',
+        '—', '', '', 0, '', '', '',
       ]
       r.eachCell((cel) => { cel.border = borde })
       fila++
@@ -268,10 +283,10 @@ function hojaPedido(
   rTotal.getCell(7).value = totalUnidades
   rTotal.getCell(7).numFmt = '#,##0'
   if (hayPrecios) {
-    rTotal.getCell(9).value = totalMonto
-    rTotal.getCell(9).numFmt = '#,##0.00'
+    rTotal.getCell(10).value = totalMonto
+    rTotal.getCell(10).numFmt = '#,##0.00'
   }
-  for (const i of [6, 7, 8, 9]) {
+  for (const i of [6, 7, 8, 9, 10]) {
     const c = rTotal.getCell(i)
     c.font = { bold: true, size: 11 }
     c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GRIS } }
@@ -536,7 +551,21 @@ async function tablaMatriz(ctx: Ctx, p: ProductoCompleto, cfg: Configuracion) {
   const colores = de(p.colores, cfg.id)
   if (!medidas.length || !colores.length) return
 
+  const conPct = hayPorcentajes(p)
   seccion(ctx, 'CANTIDADES POR MEDIDA Y COLOR', 'QUANTITIES BY SIZE AND COLOR')
+
+  // el contenedor de este estilo, si está cargado
+  if (cfg.total_unidades) {
+    const rCont = ws.getRow(ctx.fila)
+    rCont.getCell(1).value = rotulo('Contenedor', 'Container', idioma)
+    rCont.getCell(1).font = { bold: true, size: 10, color: { argb: TENUE } }
+    rCont.getCell(2).value = cfg.total_unidades
+    rCont.getCell(2).numFmt = '#,##0'
+    rCont.getCell(2).font = { bold: true, size: 10 }
+    rCont.getCell(3).value = rotulo('unidades', 'units', idioma)
+    rCont.getCell(3).font = { size: 9, color: { argb: TENUE } }
+    ctx.fila += 1
+  }
 
   // fila de muestras: la foto de cada color arriba de su columna
   if (ctx.conFotos && colores.some((c) => c.foto)) {
@@ -571,7 +600,9 @@ async function tablaMatriz(ctx: Ctx, p: ProductoCompleto, cfg: Configuracion) {
   ctx.fila += 1
 
   const totalPorColor = new Array(colores.length).fill(0)
+  const pctPorColor = new Array(colores.length).fill(0)
   let totalGeneral = 0
+  let pctGeneral = 0
 
   for (const m of medidas) {
     const r = ws.getRow(ctx.fila)
@@ -583,26 +614,52 @@ async function tablaMatriz(ctx: Ctx, p: ProductoCompleto, cfg: Configuracion) {
     r.getCell(1).border = borde
 
     let totalFila = 0
+    let pctFila = 0
     colores.forEach((c, i) => {
       const cant = cantidadDe(p, m.id, c.id)
+      const pc = pctDe(p, m.id, c.id)
       const cel = r.getCell(2 + i)
-      cel.value = cant || ''
-      cel.numFmt = '#,##0'
-      cel.alignment = { horizontal: 'center', vertical: 'middle' }
+      if (conPct && pc != null) {
+        // el número grande es la cantidad; abajo, la parte del contenedor
+        cel.value = {
+          richText: [
+            { text: cant ? cant.toLocaleString('es-AR') : '0' },
+            { text: `\n${pc}%`, font: { size: 9, color: { argb: TENUE } } },
+          ],
+        }
+        cel.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
+      } else {
+        cel.value = cant || ''
+        cel.numFmt = '#,##0'
+        cel.alignment = { horizontal: 'center', vertical: 'middle' }
+      }
       cel.border = borde
       totalFila += cant
+      pctFila += pc ?? 0
       totalPorColor[i] += cant
+      pctPorColor[i] += pc ?? 0
     })
 
     const celTotal = r.getCell(2 + colores.length)
-    celTotal.value = totalFila
-    celTotal.numFmt = '#,##0'
-    celTotal.font = { bold: true }
-    celTotal.alignment = { horizontal: 'center', vertical: 'middle' }
+    if (conPct && pctFila > 0) {
+      celTotal.value = {
+        richText: [
+          { text: totalFila.toLocaleString('es-AR'), font: { bold: true } },
+          { text: `\n${Number(pctFila.toFixed(2))}%`, font: { size: 9, color: { argb: TENUE } } },
+        ],
+      }
+      celTotal.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
+    } else {
+      celTotal.value = totalFila
+      celTotal.numFmt = '#,##0'
+      celTotal.font = { bold: true }
+      celTotal.alignment = { horizontal: 'center', vertical: 'middle' }
+    }
     celTotal.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GRIS } }
     celTotal.border = borde
     totalGeneral += totalFila
-    r.height = 22
+    pctGeneral += pctFila
+    r.height = conPct ? 30 : 22
     ctx.fila += 1
   }
 
@@ -610,11 +667,32 @@ async function tablaMatriz(ctx: Ctx, p: ProductoCompleto, cfg: Configuracion) {
   rTot.getCell(1).value = 'Total'
   totalPorColor.forEach((t, i) => {
     const c = rTot.getCell(2 + i)
-    c.value = t
-    c.numFmt = '#,##0'
+    if (conPct && pctPorColor[i] > 0) {
+      c.value = {
+        richText: [
+          { text: t.toLocaleString('es-AR'), font: { bold: true, size: 10 } },
+          { text: `\n${Number(pctPorColor[i].toFixed(2))}%`,
+            font: { size: 9, color: { argb: TENUE } } },
+        ],
+      }
+    } else {
+      c.value = t
+      c.numFmt = '#,##0'
+    }
   })
-  rTot.getCell(2 + colores.length).value = totalGeneral
-  rTot.getCell(2 + colores.length).numFmt = '#,##0'
+  const celGen = rTot.getCell(2 + colores.length)
+  if (conPct && pctGeneral > 0) {
+    celGen.value = {
+      richText: [
+        { text: totalGeneral.toLocaleString('es-AR'), font: { bold: true, size: 10 } },
+        { text: `\n${Number(pctGeneral.toFixed(2))}%`,
+          font: { size: 9, color: { argb: TENUE } } },
+      ],
+    }
+  } else {
+    celGen.value = totalGeneral
+    celGen.numFmt = '#,##0'
+  }
   for (let i = 1; i <= colores.length + 2; i++) {
     const c = rTot.getCell(i)
     c.font = { bold: true, size: 10 }
@@ -622,7 +700,7 @@ async function tablaMatriz(ctx: Ctx, p: ProductoCompleto, cfg: Configuracion) {
     c.border = borde
     if (i > 1) c.alignment = { horizontal: 'center', vertical: 'middle' }
   }
-  rTot.height = 20
+  rTot.height = conPct ? 30 : 20
   ctx.fila += 2
 
   // precios, solo si hay alguno cargado en este estilo

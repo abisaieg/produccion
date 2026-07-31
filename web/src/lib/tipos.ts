@@ -48,6 +48,8 @@ export interface Configuracion {
   nombre: string
   descripcion: string | null
   foto: string | null
+  /** unidades del contenedor de este diseño; la matriz se reparte sobre esto */
+  total_unidades: number | null
   orden: number
 }
 
@@ -97,6 +99,8 @@ export interface Medida {
   nombre: string
   detalle: string | null
   precio_unit: number | null
+  /** qué parte del contenedor va a esta medida */
+  porcentaje: number | null
   orden: number
 }
 
@@ -117,6 +121,8 @@ export interface Variante {
   medida_id: string
   color_id: string
   cantidad: number
+  /** qué parte del contenedor va a esta medida y color */
+  porcentaje: number | null
   precio_unit: number | null
   notas: string | null
 }

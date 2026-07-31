@@ -221,6 +221,29 @@ export const db = {
       { producto_id, config_id, medida_id, color_id, cantidad },
       { onConflict: 'medida_id,color_id' },
     )),
+
+  /**
+   * Guarda el porcentaje de una celda y, si el diseño tiene cargado el
+   * contenedor, deja también las unidades que le corresponden.
+   */
+  setPorcentaje: (
+    producto_id: string, config_id: string,
+    medida_id: string, color_id: string,
+    porcentaje: number | null, totalContenedor: number | null,
+  ) =>
+    escribir(supabase.from('variantes').upsert(
+      {
+        producto_id, config_id, medida_id, color_id, porcentaje,
+        cantidad: porcentaje != null && totalContenedor
+          ? Math.round(totalContenedor * porcentaje / 100)
+          : 0,
+      },
+      { onConflict: 'medida_id,color_id' },
+    )),
+
+  /** Reparte de una todas las celdas de un diseño. */
+  setVariasCeldas: (filas: Record<string, unknown>[]) =>
+    escribir(supabase.from('variantes').upsert(filas, { onConflict: 'medida_id,color_id' })),
 }
 
 // --------------------------------------------------------------- destinos

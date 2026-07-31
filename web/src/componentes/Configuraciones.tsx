@@ -244,7 +244,7 @@ function TarjetaEstilo({ datos, config, numero, abierto, onAbrir, onDuplicado, o
 
           <SeccionMatriz
             producto={producto}
-            configId={config.id}
+            config={config}
             medidas={medidas}
             colores={colores}
             variantes={variantes}
