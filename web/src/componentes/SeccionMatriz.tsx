@@ -143,10 +143,11 @@ export function SeccionMatriz({ producto, configId, medidas, colores, variantes 
                         onGuardar={(v) => db.actualizar('medidas', m.id, { nombre: v ?? 'Sin nombre' })}
                         className="text-sm font-medium flex-1 min-w-0"
                       />
+                      {/* sin texto de ejemplo: repetido en cada fila hacía
+                          parecer que todas las medidas eran iguales */}
                       <CampoTexto
                         valor={m.detalle}
                         onGuardar={(v) => db.actualizar('medidas', m.id, { detalle: v })}
-                        placeholder="240 x 260"
                         className="text-xs text-neutral-500 w-24 shrink-0"
                       />
                       <BotonBorrar
