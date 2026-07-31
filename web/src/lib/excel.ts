@@ -274,14 +274,32 @@ async function bloqueProducto(ctx: Ctx, p: ProductoCompleto) {
       const nomEn = tr.get(cfg.nombre.trim())
       titulo(ctx, rotulo(cfg.nombre, !nomEn ? cfg.nombre : nomEn, idioma))
 
+      // la foto del diseño, con su descripción al lado
+      const fotoEstilo = conFotos && cfg.foto ? await bajarImagen(cfg.foto) : null
+      if (fotoEstilo) {
+        const id = wb.addImage(fotoEstilo)
+        ws.addImage(id, {
+          tl: { col: 0.08, row: ctx.fila - 1 + 0.06 },
+          ext: { width: 128, height: 128 },
+        })
+      }
+
       if (cfg.descripcion) {
         const r = ws.getRow(ctx.fila)
-        r.getCell(1).value = valor(cfg.descripcion, tr, idioma)
-        r.getCell(1).font = { italic: true, size: 10, color: { argb: TENUE } }
-        r.getCell(1).alignment = { wrapText: true, vertical: 'top' }
-        ws.mergeCells(ctx.fila, 1, ctx.fila, COLS)
+        const celda = r.getCell(fotoEstilo ? 2 : 1)
+        celda.value = valor(cfg.descripcion, tr, idioma)
+        celda.font = { italic: true, size: 10, color: { argb: TENUE } }
+        celda.alignment = { wrapText: true, vertical: 'top' }
+        ws.mergeCells(ctx.fila, fotoEstilo ? 2 : 1, ctx.fila, COLS)
         r.height = idioma === 'ambos' ? 28 : 16
         ctx.fila += 1
+      }
+
+      // dejar lugar para que la foto no pise lo que sigue
+      if (fotoEstilo) {
+        const usadas = cfg.descripcion ? 1 : 0
+        for (let i = usadas; i < 6; i++) ws.getRow(ctx.fila + i - usadas).height = 18
+        ctx.fila += Math.max(0, 6 - usadas)
       }
     }
 
