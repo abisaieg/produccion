@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { db, duplicarConfig } from '../lib/datos'
 import {
-  deConfig, galeriaDe, SPECS_INICIALES,
+  COLORES_INICIALES, deConfig, galeriaDe, SPECS_INICIALES,
   type Configuracion, type ProductoCompleto,
 } from '../lib/tipos'
 import { AltaRapida, CampoTexto } from './ui'
@@ -24,6 +24,11 @@ export function Configuraciones({ datos, onAviso }: {
   const [agregando, setAgregando] = useState(false)
   const [abierto, setAbierto] = useState<string | null>(configs[0]?.id ?? null)
 
+  // las medidas del primer estilo se repiten en los nuevos
+  const medidasBase = configs.length
+    ? deConfig(datos.medidas, configs[0].id)
+    : []
+
   const agregarVarios = async (nombres: string[]) => {
     const { data } = await db.agregarVarias('configuraciones', nombres.map((nombre, i) => ({
       producto_id: producto.id, nombre, orden: configs.length + i,
@@ -31,11 +36,25 @@ export function Configuraciones({ datos, onAviso }: {
     const creados = (data ?? []) as { id: string }[]
     if (!creados.length) return
 
-    // cada estilo nace con sus detalles básicos listos para la foto
-    await db.agregarVarias('especificaciones', creados.flatMap((c) =>
-      SPECS_INICIALES.map((nombre, i) => ({
-        producto_id: producto.id, config_id: c.id, nombre, orden: i,
-      }))))
+    // cada estilo nace con sus detalles básicos y sus colores para renombrar
+    await Promise.all([
+      db.agregarVarias('especificaciones', creados.flatMap((c) =>
+        SPECS_INICIALES.map((nombre, i) => ({
+          producto_id: producto.id, config_id: c.id, nombre, orden: i,
+        })))),
+      db.agregarVarias('colores', creados.flatMap((c) =>
+        COLORES_INICIALES.map((nombre, i) => ({
+          producto_id: producto.id, config_id: c.id, nombre, orden: i,
+        })))),
+      // y con las mismas medidas del primer estilo, que suelen repetirse
+      medidasBase.length
+        ? db.agregarVarias('medidas', creados.flatMap((c) =>
+            medidasBase.map((m, i) => ({
+              producto_id: producto.id, config_id: c.id,
+              nombre: m.nombre, detalle: m.detalle, orden: i,
+            }))))
+        : Promise.resolve(),
+    ])
 
     setAbierto(creados[0].id)
   }

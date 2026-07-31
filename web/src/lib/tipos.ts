@@ -161,6 +161,13 @@ export function galeriaDe(fotos: Foto[], configId: string): Foto[] {
 export const SPECS_INICIALES = ['Packaging', 'Insert']
 
 /**
+ * Colores que se crean con cada estilo, para renombrar. Siempre se eligen
+ * unos cuantos por diseño, así que es más rápido tenerlos puestos y
+ * cambiarles el nombre que agregarlos de cero cada vez.
+ */
+export const COLORES_INICIALES = ['Color 1', 'Color 2', 'Color 3', 'Color 4']
+
+/**
  * Medidas listas para agregar de un toque. Solo el nombre: los centímetros
  * los define cada pedido con su fábrica, en la misma fila de la medida.
  */
