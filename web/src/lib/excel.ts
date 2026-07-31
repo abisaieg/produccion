@@ -72,7 +72,7 @@ function textosDe(productos: ProductoCompleto[]): string[] {
     for (const c of p.configs) out.push(c.nombre, c.descripcion)
     for (const s of p.specs) out.push(s.nombre, s.valor)
     for (const m of p.medidas) out.push(m.nombre, m.detalle)
-    for (const c of p.colores) out.push(c.nombre)
+    for (const c of p.colores) out.push(c.nombre, c.nota)
     for (const f of p.fotos) out.push(f.titulo)
     for (const n of p.notas) out.push(n.texto)
     for (const v of p.variantes) out.push(v.notas)
@@ -457,6 +457,23 @@ async function matriz(
     c.border = borde
   }
   ctx.fila += 1
+
+  // la aclaración de cada color, debajo de su nombre
+  if (colores.some((c) => c.nota)) {
+    const rNota = ws.getRow(ctx.fila)
+    colores.forEach((c, i) => {
+      const cel = rNota.getCell(2 + i)
+      cel.value = valor(c.nota, tr, idioma)
+      cel.font = { size: 8, color: { argb: TENUE } }
+      cel.alignment = { horizontal: 'center', vertical: 'top', wrapText: true }
+      cel.border = borde
+    })
+    rNota.getCell(1).border = borde
+    rNota.getCell(ultima).border = borde
+    const masLargo = Math.max(...colores.map((c) => c.nota?.length ?? 0))
+    rNota.height = Math.min(56, 14 + masLargo / (idioma === 'ambos' ? 1.2 : 2.2))
+    ctx.fila += 1
+  }
 
   const totalColor = new Array(colores.length).fill(0)
   const pctColor = new Array(colores.length).fill(0)

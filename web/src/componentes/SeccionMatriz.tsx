@@ -456,6 +456,16 @@ function EncabezadoColor({ color }: { color: Color }) {
           ×
         </button>
       </div>
+
+      {/* aclaración de este color para la fábrica */}
+      <CampoTexto
+        valor={color.nota}
+        onGuardar={(v) => db.actualizar('colores', color.id, { nota: v })}
+        placeholder="Nota…"
+        className="text-[10px] text-neutral-500 leading-snug w-full text-center"
+        multilinea
+        filas={1}
+      />
     </div>
   )
 }

@@ -111,6 +111,8 @@ export interface Color {
   nombre: string
   hex: string | null
   foto: string | null
+  /** aclaración propia de este color: tono exacto, Pantone, con qué combina */
+  nota: string | null
   orden: number
 }
 
