@@ -160,6 +160,28 @@ export function galeriaDe(fotos: Foto[], configId: string): Foto[] {
  */
 export const SPECS_INICIALES = ['Packaging', 'Insert']
 
+/**
+ * Medidas listas para agregar de un toque. Solo el nombre: los centímetros
+ * los define cada pedido con su fábrica, en la misma fila de la medida.
+ */
+export const MEDIDAS_SUGERIDAS: { grupo: string; nombre: string }[] = [
+  { grupo: 'Internacionales', nombre: 'Twin' },
+  { grupo: 'Internacionales', nombre: 'Twin XL' },
+  { grupo: 'Internacionales', nombre: 'Full' },
+  { grupo: 'Internacionales', nombre: 'Queen' },
+  { grupo: 'Internacionales', nombre: 'King' },
+  { grupo: 'Internacionales', nombre: 'Super King' },
+  { grupo: 'Argentinas', nombre: '1 plaza' },
+  { grupo: 'Argentinas', nombre: '1 plaza y media' },
+  { grupo: 'Argentinas', nombre: '2 plazas' },
+]
+
+/** Colores que se repiten pedido a pedido. */
+export const COLORES_SUGERIDOS = [
+  'Blanco', 'Crudo', 'Beige', 'Tostado', 'Gris', 'Gris oscuro',
+  'Negro', 'Azul', 'Verde oliva', 'Rosa viejo',
+]
+
 // Especificaciones que se sugieren al crear un producto nuevo.
 // Son solo un punto de partida: se editan, se borran y se agregan las que quieras.
 export const SPECS_SUGERIDAS = [

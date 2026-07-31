@@ -11,7 +11,8 @@
     "deploy": "npm run build && gh-pages -d dist",
     "prueba-fotos": "vite-node src/prueba-fotos.ts",
     "prueba-copiar": "vite-node src/prueba-copiar.ts",
-    "prueba-excel-real": "vite-node src/prueba-excel-real.ts"
+    "prueba-excel-real": "vite-node src/prueba-excel-real.ts",
+    "prueba-medidas": "vite-node src/prueba-medidas.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

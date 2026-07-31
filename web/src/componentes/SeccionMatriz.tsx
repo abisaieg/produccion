@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { db } from '../lib/datos'
-import type { Color, Medida, Producto, Variante } from '../lib/tipos'
+import {
+  COLORES_SUGERIDOS, MEDIDAS_SUGERIDAS,
+  type Color, type Medida, type Producto, type Variante,
+} from '../lib/tipos'
 import { AltaRapida, BotonBorrar, CampoTexto } from './ui'
 import { Foto } from './Foto'
 import { borrarFoto } from '../lib/fotos'
@@ -37,8 +40,8 @@ export function SeccionMatriz({ producto, configId, medidas, colores, variantes 
 
   const agregarMedidas = (nombres: string[]) =>
     db.agregarVarias('medidas', nombres.map((nombre, i) => ({
-      producto_id: producto.id, config_id: configId,
-      nombre, orden: medidas.length + i,
+      producto_id: producto.id, config_id: configId, nombre,
+      orden: medidas.length + i,
     })))
   const agregarColores = (nombres: string[]) =>
     db.agregarVarias('colores', nombres.map((nombre, i) => ({
@@ -73,7 +76,9 @@ export function SeccionMatriz({ producto, configId, medidas, colores, variantes 
       {alta === 'medidas' && (
         <AltaRapida
           etiqueta="Medidas"
-          ejemplo="1 plaza, 2 plazas, King"
+          ejemplo="o escribí otras, separadas por coma"
+          sugerencias={MEDIDAS_SUGERIDAS.filter(
+            (m) => !medidas.some((x) => x.nombre.toLowerCase() === m.nombre.toLowerCase()))}
           onCrear={agregarMedidas}
           onCerrar={() => setAlta(null)}
         />
@@ -81,7 +86,10 @@ export function SeccionMatriz({ producto, configId, medidas, colores, variantes 
       {alta === 'colores' && (
         <AltaRapida
           etiqueta="Colores"
-          ejemplo="Beige, Azul, Gris, Verde"
+          ejemplo="o escribí otros, separados por coma"
+          sugerencias={COLORES_SUGERIDOS
+            .filter((c) => !colores.some((x) => x.nombre.toLowerCase() === c.toLowerCase()))
+            .map((nombre) => ({ nombre }))}
           onCrear={agregarColores}
           onCerrar={() => setAlta(null)}
         />

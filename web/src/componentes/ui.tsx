@@ -195,11 +195,13 @@ export function Aviso({ mensaje, onCerrar }: { mensaje: string; onCerrar: () => 
  * Alta de varios de una: "1 plaza, 2 plazas, King" crea las tres.
  * Cargar de a uno con un botón cada vez era lentísimo.
  */
-export function AltaRapida({ etiqueta, ejemplo, onCrear, onCerrar }: {
+export function AltaRapida({ etiqueta, ejemplo, onCrear, onCerrar, sugerencias = [] }: {
   etiqueta: string
   ejemplo: string
   onCrear: (nombres: string[]) => void | Promise<unknown>
   onCerrar: () => void
+  /** opciones para agregar de un toque, agrupadas por su `grupo` */
+  sugerencias?: { grupo?: string; nombre: string; detalle?: string }[]
 }) {
   const [texto, setTexto] = useState('')
   const [guardando, setGuardando] = useState(false)
@@ -208,6 +210,17 @@ export function AltaRapida({ etiqueta, ejemplo, onCrear, onCerrar }: {
     .split(/[,\n]/)
     .map((t) => t.trim())
     .filter(Boolean)
+
+  /** suma o quita la opción de la lista que se va a crear */
+  const alternar = (nombre: string) => {
+    const yaEsta = nombres.some((n) => n.toLowerCase() === nombre.toLowerCase())
+    const quedan = yaEsta
+      ? nombres.filter((n) => n.toLowerCase() !== nombre.toLowerCase())
+      : [...nombres, nombre]
+    setTexto(quedan.join(', '))
+  }
+
+  const grupos = [...new Set(sugerencias.map((s) => s.grupo ?? ''))]
 
   const crear = async () => {
     if (!nombres.length) return
@@ -219,6 +232,39 @@ export function AltaRapida({ etiqueta, ejemplo, onCrear, onCerrar }: {
 
   return (
     <div className="p-3 bg-neutral-50 border border-neutral-200 rounded mb-3">
+      {sugerencias.length > 0 && (
+        <div className="mb-3 space-y-2">
+          {grupos.map((g) => (
+            <div key={g}>
+              {g && <p className="text-[11px] text-neutral-400 mb-1">{g}</p>}
+              <div className="flex flex-wrap gap-1.5">
+                {sugerencias.filter((s) => (s.grupo ?? '') === g).map((s) => {
+                  const puesta = nombres.some((n) => n.toLowerCase() === s.nombre.toLowerCase())
+                  return (
+                    <button
+                      key={s.nombre}
+                      onClick={() => alternar(s.nombre)}
+                      title={s.detalle}
+                      className={`text-xs px-2.5 py-1.5 rounded-full border transition-colors
+                                  ${puesta
+                                    ? 'bg-neutral-900 text-white border-neutral-900'
+                                    : 'bg-white border-neutral-300 hover:border-neutral-900'}`}
+                    >
+                      {puesta ? '✓ ' : '+ '}{s.nombre}
+                      {s.detalle && (
+                        <span className={puesta ? 'opacity-60' : 'text-neutral-400'}>
+                          {' '}{s.detalle.replace(' cm', '')}
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       <label className="text-xs text-neutral-500 block mb-1">
         {etiqueta} — separados por coma
       </label>
