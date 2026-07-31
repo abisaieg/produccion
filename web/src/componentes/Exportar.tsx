@@ -24,17 +24,29 @@ export function Exportar({ ids, onCerrar, onListo }: {
 
   useEffect(() => { traerCompletos(ids).then(setProductos) }, [ids])
 
+  // todas las imágenes que van al archivo: las de los detalles y la galería,
+  // más las muestras de color, las de cada estilo y la del producto
   const totalFotos = productos
     ? productos.reduce(
         (s, p) =>
-          s + (p.producto.foto ? 1 : 0) + p.fotos.length +
-          p.specs.filter((e) => e.foto).length,
+          s + (p.producto.foto ? 1 : 0)
+            + p.fotos.length
+            + p.specs.filter((e) => e.foto).length
+            + p.colores.filter((c) => c.foto).length
+            + (p.configs.length > 1 ? p.configs.filter((c) => c.foto).length : 0),
         0)
     : 0
 
   const totalUnidades = productos
     ? productos.reduce((s, p) => s + p.variantes.reduce((t, v) => t + v.cantidad, 0), 0)
     : 0
+
+  /** el pedido puede estar armado por porcentaje en vez de por unidades */
+  const porPorcentaje = productos
+    ? productos.every((p) =>
+        p.variantes.some((v) => v.porcentaje != null) ||
+        p.medidas.some((m) => m.porcentaje != null))
+    : false
 
   async function generar() {
     if (!productos?.length) return
@@ -72,8 +84,10 @@ export function Exportar({ ids, onCerrar, onListo }: {
                 : `${productos.length} productos`}
             </p>
             <p className="text-neutral-500 text-xs">
-              {totalUnidades.toLocaleString('es-AR')} unidades · {totalFotos}{' '}
-              {totalFotos === 1 ? 'foto' : 'fotos'}
+              {porPorcentaje
+                ? 'reparto por porcentaje'
+                : `${totalUnidades.toLocaleString('es-AR')} unidades`}
+              {' · '}{totalFotos} {totalFotos === 1 ? 'foto' : 'fotos'}
             </p>
           </div>
 

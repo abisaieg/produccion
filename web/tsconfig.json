@@ -26,6 +26,7 @@
   "exclude": [
     "src/prueba-fotos.ts",
     "src/prueba-excel-real.ts",
-    "src/prueba-porcentajes.ts"
+    "src/prueba-porcentajes.ts",
+    "src/prueba-final.ts"
   ]
 }

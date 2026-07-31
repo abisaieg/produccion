@@ -13,7 +13,8 @@
     "prueba-copiar": "vite-node src/prueba-copiar.ts",
     "prueba-excel-real": "vite-node src/prueba-excel-real.ts",
     "prueba-medidas": "vite-node src/prueba-medidas.ts",
-    "prueba-porcentajes": "vite-node src/prueba-porcentajes.ts"
+    "prueba-porcentajes": "vite-node src/prueba-porcentajes.ts",
+    "prueba-final": "vite-node src/prueba-final.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
