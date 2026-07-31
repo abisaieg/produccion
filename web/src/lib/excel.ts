@@ -185,31 +185,48 @@ function hojaPedido(
   idioma: Idioma,
 ) {
   const ws = wb.addWorksheet('PEDIDO', { views: [{ state: 'frozen', ySplit: 2 }] })
-  ws.columns = [
-    { width: 28 }, { width: 20 }, { width: 13 }, { width: 18 },
-    { width: 20 }, { width: 18 }, { width: 11 }, { width: 10 },
-    { width: 13 }, { width: 13 },
-  ]
 
+  // si todo el pedido va por porcentaje, las columnas de unidades y plata
+  // no tienen nada que mostrar: se omiten
+  const todoPct = productos.every(hayPorcentajes)
+
+  ws.columns = todoPct
+    ? [{ width: 28 }, { width: 20 }, { width: 13 }, { width: 18 },
+       { width: 20 }, { width: 18 }, { width: 12 }]
+    : [{ width: 28 }, { width: 20 }, { width: 13 }, { width: 18 },
+       { width: 20 }, { width: 18 }, { width: 11 }, { width: 10 },
+       { width: 13 }, { width: 13 }]
+
+  const ultima = todoPct ? 'G' : 'J'
   const titulo = ws.getCell('A1')
   titulo.value = rotulo('PEDIDO', 'PURCHASE ORDER', idioma)
   titulo.font = { bold: true, size: 14, color: { argb: NEGRO } }
-  ws.mergeCells('A1:J1')
+  ws.mergeCells(`A1:${ultima}1`)
   ws.getRow(1).height = 26
 
   const filaCab = ws.getRow(2)
-  filaCab.values = [
-    rotulo('Producto', 'Product', idioma),
-    rotulo('Estilo', 'Style', idioma),
-    rotulo('Código', 'Code', idioma),
-    rotulo('Medida', 'Size', idioma),
-    rotulo('Detalle', 'Spec', idioma),
-    rotulo('Color', 'Color', idioma),
-    rotulo('Cantidad', 'Qty', idioma),
-    rotulo('% cont.', '% of cont.', idioma),
-    rotulo('Precio U.', 'Unit price', idioma),
-    rotulo('Subtotal', 'Subtotal', idioma),
-  ]
+  filaCab.values = todoPct
+    ? [
+        rotulo('Producto', 'Product', idioma),
+        rotulo('Estilo', 'Style', idioma),
+        rotulo('Código', 'Code', idioma),
+        rotulo('Medida', 'Size', idioma),
+        rotulo('Detalle', 'Spec', idioma),
+        rotulo('Color', 'Color', idioma),
+        rotulo('% del contenedor', '% of container', idioma),
+      ]
+    : [
+        rotulo('Producto', 'Product', idioma),
+        rotulo('Estilo', 'Style', idioma),
+        rotulo('Código', 'Code', idioma),
+        rotulo('Medida', 'Size', idioma),
+        rotulo('Detalle', 'Spec', idioma),
+        rotulo('Color', 'Color', idioma),
+        rotulo('Cantidad', 'Qty', idioma),
+        rotulo('% cont.', '% of cont.', idioma),
+        rotulo('Precio U.', 'Unit price', idioma),
+        rotulo('Subtotal', 'Subtotal', idioma),
+      ]
   filaCab.height = 24
   filaCab.eachCell((c) => {
     c.font = { bold: true, size: 10, color: { argb: 'FFFFFFFF' } }
@@ -226,41 +243,51 @@ function hojaPedido(
   for (const p of productos) {
     const inicio = fila
     const conVersiones = mostrarVersiones(p)
+    // si el pedido se armó por porcentaje, el dato es el porcentaje: las
+    // unidades no van
+    const soloPct = hayPorcentajes(p)
 
     for (const cfg of p.configs) {
       for (const m of de(p.medidas, cfg.id)) {
         for (const c of de(p.colores, cfg.id)) {
           const cant = cantidadDe(p, m.id, c.id)
-          if (cant <= 0) continue
+          const pc = pctDe(p, m.id, c.id)
+          if (soloPct ? pc == null : cant <= 0) continue
           const precio = precioDe(p, m.id, c.id)
           if (precio != null) hayPrecios = true
 
-          const r = ws.getRow(fila)
-          r.values = [
+          const base = [
             valorCorto(p.producto.nombre, tr, idioma),
             conVersiones ? valorCorto(cfg.nombre, tr, idioma) : '',
             p.producto.codigo ?? '',
             valorCorto(m.nombre, tr, idioma),
             valorCorto(m.detalle, tr, idioma),
             valorCorto(c.nombre, tr, idioma),
-            cant,
-            pctDe(p, m.id, c.id) ?? '',
-            precio ?? '',
-            precio != null ? precio * cant : '',
           ]
+          const r = ws.getRow(fila)
+          r.values = todoPct
+            ? [...base, pc ?? '']
+            : [...base, soloPct ? '' : cant, pc ?? '',
+               precio ?? '', !soloPct && precio != null ? precio * cant : '']
           r.eachCell((cel, i) => {
             cel.border = borde
             cel.alignment = i >= 7
               ? { horizontal: 'right', vertical: 'middle' }
               : { vertical: 'middle', wrapText: true }
           })
-          r.getCell(7).numFmt = '#,##0'
-          r.getCell(8).numFmt = '0.00"%"'
-          r.getCell(9).numFmt = '#,##0.0000'
-          r.getCell(10).numFmt = '#,##0.00'
+          if (todoPct) {
+            r.getCell(7).numFmt = '0.00"%"'
+          } else {
+            r.getCell(7).numFmt = '#,##0'
+            r.getCell(8).numFmt = '0.00"%"'
+            r.getCell(9).numFmt = '#,##0.0000'
+            r.getCell(10).numFmt = '#,##0.00'
+          }
 
-          totalUnidades += cant
-          if (precio != null) totalMonto += precio * cant
+          if (!soloPct) {
+            totalUnidades += cant
+            if (precio != null) totalMonto += precio * cant
+          }
           fila++
         }
       }
@@ -271,7 +298,7 @@ function hojaPedido(
       const r = ws.getRow(fila)
       r.values = [
         valorCorto(p.producto.nombre, tr, idioma), '', p.producto.codigo ?? '',
-        '—', '', '', 0, '', '', '',
+        '—', '', '', todoPct ? '' : 0,
       ]
       r.eachCell((cel) => { cel.border = borde })
       fila++
@@ -280,13 +307,15 @@ function hojaPedido(
 
   const rTotal = ws.getRow(fila + 1)
   rTotal.getCell(6).value = 'TOTAL'
-  rTotal.getCell(7).value = totalUnidades
-  rTotal.getCell(7).numFmt = '#,##0'
-  if (hayPrecios) {
+  if (!todoPct && totalUnidades > 0) {
+    rTotal.getCell(7).value = totalUnidades
+    rTotal.getCell(7).numFmt = '#,##0'
+  }
+  if (!todoPct && hayPrecios) {
     rTotal.getCell(10).value = totalMonto
     rTotal.getCell(10).numFmt = '#,##0.00'
   }
-  for (const i of [6, 7, 8, 9, 10]) {
+  for (const i of todoPct ? [6, 7] : [6, 7, 8, 9, 10]) {
     const c = rTotal.getCell(i)
     c.font = { bold: true, size: 11 }
     c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GRIS } }
@@ -295,7 +324,7 @@ function hojaPedido(
   }
   rTotal.height = 22
 
-  if (hayPrecios) {
+  if (hayPrecios && !todoPct) {
     const moneda = productos[0]?.producto.moneda ?? 'USD'
     const nota = ws.getCell(`A${fila + 3}`)
     nota.value = rotulo(`Precios expresados en ${moneda}`, `Prices in ${moneda}`, idioma)
@@ -552,7 +581,12 @@ async function tablaMatriz(ctx: Ctx, p: ProductoCompleto, cfg: Configuracion) {
   if (!medidas.length || !colores.length) return
 
   const conPct = hayPorcentajes(p)
-  seccion(ctx, 'CANTIDADES POR MEDIDA Y COLOR', 'QUANTITIES BY SIZE AND COLOR')
+  if (conPct) {
+    seccion(ctx, 'REPARTO POR MEDIDA Y COLOR (% DEL CONTENEDOR)',
+      'BREAKDOWN BY SIZE AND COLOR (% OF CONTAINER)')
+  } else {
+    seccion(ctx, 'CANTIDADES POR MEDIDA Y COLOR', 'QUANTITIES BY SIZE AND COLOR')
+  }
 
   // el contenedor de este estilo, si está cargado
   if (cfg.total_unidades) {
@@ -619,15 +653,10 @@ async function tablaMatriz(ctx: Ctx, p: ProductoCompleto, cfg: Configuracion) {
       const cant = cantidadDe(p, m.id, c.id)
       const pc = pctDe(p, m.id, c.id)
       const cel = r.getCell(2 + i)
-      if (conPct && pc != null) {
-        // el número grande es la cantidad; abajo, la parte del contenedor
-        cel.value = {
-          richText: [
-            { text: cant ? cant.toLocaleString('es-AR') : '0' },
-            { text: `\n${pc}%`, font: { size: 9, color: { argb: TENUE } } },
-          ],
-        }
-        cel.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
+      if (conPct) {
+        // cargado por porcentaje: el dato es el porcentaje, no las unidades
+        cel.value = pc != null ? `${pc}%` : ''
+        cel.alignment = { horizontal: 'center', vertical: 'middle' }
       } else {
         cel.value = cant || ''
         cel.numFmt = '#,##0'
@@ -641,14 +670,10 @@ async function tablaMatriz(ctx: Ctx, p: ProductoCompleto, cfg: Configuracion) {
     })
 
     const celTotal = r.getCell(2 + colores.length)
-    if (conPct && pctFila > 0) {
-      celTotal.value = {
-        richText: [
-          { text: totalFila.toLocaleString('es-AR'), font: { bold: true } },
-          { text: `\n${Number(pctFila.toFixed(2))}%`, font: { size: 9, color: { argb: TENUE } } },
-        ],
-      }
-      celTotal.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
+    if (conPct) {
+      celTotal.value = `${Number(pctFila.toFixed(2))}%`
+      celTotal.font = { bold: true }
+      celTotal.alignment = { horizontal: 'center', vertical: 'middle' }
     } else {
       celTotal.value = totalFila
       celTotal.numFmt = '#,##0'
@@ -659,7 +684,7 @@ async function tablaMatriz(ctx: Ctx, p: ProductoCompleto, cfg: Configuracion) {
     celTotal.border = borde
     totalGeneral += totalFila
     pctGeneral += pctFila
-    r.height = conPct ? 30 : 22
+    r.height = 22
     ctx.fila += 1
   }
 
@@ -667,28 +692,20 @@ async function tablaMatriz(ctx: Ctx, p: ProductoCompleto, cfg: Configuracion) {
   rTot.getCell(1).value = 'Total'
   totalPorColor.forEach((t, i) => {
     const c = rTot.getCell(2 + i)
-    if (conPct && pctPorColor[i] > 0) {
-      c.value = {
-        richText: [
-          { text: t.toLocaleString('es-AR'), font: { bold: true, size: 10 } },
-          { text: `\n${Number(pctPorColor[i].toFixed(2))}%`,
-            font: { size: 9, color: { argb: TENUE } } },
-        ],
-      }
+    if (conPct) {
+      c.value = `${Number(pctPorColor[i].toFixed(2))}%`
+      c.font = { bold: true, size: 10 }
+      c.alignment = { horizontal: 'center', vertical: 'middle' }
     } else {
       c.value = t
       c.numFmt = '#,##0'
     }
   })
   const celGen = rTot.getCell(2 + colores.length)
-  if (conPct && pctGeneral > 0) {
-    celGen.value = {
-      richText: [
-        { text: totalGeneral.toLocaleString('es-AR'), font: { bold: true, size: 10 } },
-        { text: `\n${Number(pctGeneral.toFixed(2))}%`,
-          font: { size: 9, color: { argb: TENUE } } },
-      ],
-    }
+  if (conPct) {
+    celGen.value = `${Number(pctGeneral.toFixed(2))}%`
+    celGen.font = { bold: true, size: 10 }
+    celGen.alignment = { horizontal: 'center', vertical: 'middle' }
   } else {
     celGen.value = totalGeneral
     celGen.numFmt = '#,##0'
@@ -700,11 +717,11 @@ async function tablaMatriz(ctx: Ctx, p: ProductoCompleto, cfg: Configuracion) {
     c.border = borde
     if (i > 1) c.alignment = { horizontal: 'center', vertical: 'middle' }
   }
-  rTot.height = conPct ? 30 : 20
+  rTot.height = 20
   ctx.fila += 2
 
-  // precios, solo si hay alguno cargado en este estilo
-  const conPrecio = medidas.filter((m) => m.precio_unit != null)
+  // precios, solo si hay alguno cargado en este estilo y hay unidades
+  const conPrecio = conPct ? [] : medidas.filter((m) => m.precio_unit != null)
   if (!conPrecio.length) return
 
   seccion(ctx, `PRECIOS (${p.producto.moneda})`, `PRICES (${p.producto.moneda})`)
